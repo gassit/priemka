@@ -1,4 +1,4 @@
-var CACHE = 'priemka-v1';
+var CACHE = 'priemka-v2';
 var ASSETS = [
     './',
     './index.html',

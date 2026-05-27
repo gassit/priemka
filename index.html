@@ -43,8 +43,7 @@
                 <textarea id="remarkText" rows="4" placeholder="Описание замечания..."></textarea>
                 
                 <label style="display:block; margin-bottom:10px; cursor:pointer;">
-                    <span class="btn" style="background:#95a5a6;">Прикрепить фото</span>
-                    <!-- Добавлена возможность загрузки нескольких фотографий -->
+                    <span class="btn" style="background:#95a5a6;">Прикрепить фото (несколько)</span>
                     <input type="file" id="photoInput" accept="image/*" multiple style="display: none;">
                 </label>
                 
@@ -59,15 +58,13 @@
     </div>
 
 <script>
-var DB_NAME='RemarksDB', STORE='remarks', db, remarks=[], currentEditId=null;
+var DB_NAME='RemarksDB', STORE='remarks', db, remarks=[], currentEditId=null, isMemoryMode=false;
 
-// ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ (Исправлена критическая ошибка r.success -> r.onsuccess)
 function openDB(){return new Promise(function(res,rej){var r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=function(e){e.target.result.createObjectStore(STORE,{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res();};r.onerror=function(){rej(r.error);};});}
 function dbGetAll(){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();tx.oncomplete=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
-function dbPut(item){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
+function dbPut(item){return new Promise(function(res,rej){if(isMemoryMode){res();return;}var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
 
-// 1 ФРАГМЕНТ: Функция dbDelete (строка ~ после dbClear)
-function dbDelete(id){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
+function dbDelete(id){return new Promise(function(res,rej){if(isMemoryMode){res();return;}var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
 
 function showScreen(name){
     document.getElementById('screen-list').classList.toggle('hidden', name!=='list');
@@ -83,7 +80,6 @@ function renderList(){
         var thumbHtml='';
         if(photos.length>0){
             thumbHtml='<div class="photos-preview">';
-            // Показываем все прикрепленные фото маленькими превью
             for(var i=0; i<photos.length; i++){thumbHtml+='<img src="'+photos[i]+'" alt="photo">';}
             thumbHtml+='</div>';
         }
@@ -113,13 +109,11 @@ function openForm(id){
     showScreen('form');
 }
 
-// Отрисовка превью уже загруженных фото при редактировании
 function renderFormPreviews(photos){
     var c=document.getElementById('photoPreviews'); c.innerHTML='';
     photos.forEach(function(p){ c.innerHTML+='<img src="'+p+'" alt="photo">'; });
 }
 
-// Чтение множества файлов
 function readFileAsDataURL(file){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(e){res(e.target.result);};fr.onerror=function(){rej(fr.error);};fr.readAsDataURL(file);});}
 
 function saveRemark(){
@@ -149,8 +143,6 @@ function finishSave(text, photos){
     } else {
         var ni={id:Date.now(), text:text, photos:photos, date:new Date().toLocaleString()};
         remarks.push(ni);
-        
-        // 2 ФРАГМЕНТ: В saveRemark (в блоке else нового замечания)
         dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});
     }
 }
@@ -166,8 +158,6 @@ function exportToHtml(){
     var html='<html><head><meta charset="utf-8"><title>Замечания</title></head><body><h1>Журнал замечаний</h1>';
     remarks.forEach(function(r){
         var photos=r.photos||[];
-        
-        // 3 ФРАГМЕНТ: В exportToHtml (переменная ph)
         var ph=photos.length>0?'<img src="'+photos[0]+'" style="max-width:200px;width:100%;border:1px solid #aaa;display:block;margin:0 auto;"/>'+(photos.length>1?'<div style="font-size:8pt;text-align:center;color:#888;margin-top:2px;">ещё '+(photos.length-1)+'</div>':'') :'—';
         
         html+='<div style="border:1px solid #ccc;margin:10px 0;padding:10px;">';
@@ -184,12 +174,9 @@ function exportToHtml(){
     URL.revokeObjectURL(a.href);
 }
 
-function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.opacity=1;setTimeout(function(){t.style.opacity=0;},2000);}
+function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.opacity=1;setTimeout(function(){t.style.opacity=0;},2500);}
 
-// 4 ФРАГМЕНТ: В HTML (кнопка сохранения в форме) - реализована в виде:
-// <button class="btn btn-success" onclick="saveRemark()">Сохранить</button>
-
-// ЗАПУСК
+// ЗАПУСК С ЗАЩИТОЙ ОТ ОШИБОК БЕЗОПАСНОСТИ
 openDB().then(function(){
     return dbGetAll();
 }).then(function(data){
@@ -197,8 +184,14 @@ openDB().then(function(){
     showScreen('list');
     document.getElementById('spinner').style.display='none';
 }).catch(function(e){
-    console.error(e);
-    document.getElementById('spinner').innerHTML='Ошибка инициализации: '+e;
+    console.warn("IndexedDB недоступен. Запуск в демо-режиме (без сохранения). Причина: ", e);
+    
+    // Переключаем приложение в режим работы в оперативной памяти
+    isMemoryMode = true;
+    remarks = [];
+    showScreen('list');
+    document.getElementById('spinner').style.display='none';
+    showToast('БД заблокирована браузером! Работаем без сохранения.');
 });
 </script>
 </body>

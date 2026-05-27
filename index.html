@@ -119,7 +119,6 @@
     
     <div id="screen-list" class="screen active">
         <div class="status-bar"></div>
-        
         <header class="app-header" id="header-normal">
             <span class="material-icons-round header-icon" style="color:var(--accent)">construction</span>
             <h1 id="list-title">Приёмка объекта</h1>
@@ -127,13 +126,11 @@
             <button class="header-btn" id="btn-export" aria-label="Выгрузить"><span class="material-icons-round header-icon">download</span></button>
             <button class="header-btn" id="btn-menu" aria-label="Меню"><span class="material-icons-round header-icon">more_vert</span></button>
         </header>
-
         <header class="app-header" id="header-select" style="display:none">
             <button class="header-btn" id="btn-exit-select" aria-label="Отмена"><span class="material-icons-round header-icon">close</span></button>
-            <h1 id="select-title" style="font-size:15px">Выбрано: 0</h1>
+            <h1 id="select-title" style="font-size:15px; flex:1;">Выбрано: 0</h1>
             <button class="header-btn header-btn-del" id="btn-del-selected" aria-label="Удалить выбранные"><span class="material-icons-round header-icon">delete</span></button>
         </header>
-
         <div class="screen-content" id="list-content"></div>
         <button class="fab" id="btn-add" aria-label="Добавить замечание"><span class="material-icons-round">add</span></button>
     </div>
@@ -175,16 +172,7 @@
     
     <div class="modal-overlay" id="delete-modal"><div class="modal-box"><h3>Удалить замечание?</h3><p>Действие нельзя будет отменить</p><div class="modal-btns"><button class="modal-cancel" id="btn-modal-cancel">Отмена</button><button class="modal-confirm" id="btn-modal-confirm">Удалить</button></div></div></div>
     
-    <div class="modal-overlay" id="clear-modal">
-        <div class="modal-box">
-            <h3 id="clear-modal-title">Удалить все замечания?</h3>
-            <p>Будет удалено замечаний: <span id="clear-count">0</span></p>
-            <div class="modal-btns">
-                <button class="modal-cancel" id="btn-clear-cancel">Отмена</button>
-                <button class="modal-confirm" id="btn-clear-confirm">Удалить</button>
-            </div>
-        </div>
-    </div>
+    <div class="modal-overlay" id="clear-modal"><div class="modal-box"><h3 id="clear-modal-title">Удалить все замечания?</h3><p>Будет удалено замечаний: <span id="clear-count">0</span></p><div class="modal-btns"><button class="modal-cancel" id="btn-clear-cancel">Отмена</button><button class="modal-confirm" id="btn-clear-confirm">Удалить</button></div></div></div>
     
     <div class="bottom-sheet" id="bottom-sheet">
         <div class="bottom-sheet-content">
@@ -197,267 +185,265 @@
     </div>
     <input type="file" id="input-import-html" accept=".html,.htm" hidden>
 
-<script>
-    if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
-    
-    var DB_NAME='PriemkaDB',DB_VER=2,STORE='remarks',db=null, isMemoryMode=false;
-    
-    function openDB(){return new Promise(function(res,rej){try{var r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
-    function dbGetAll(){return new Promise(function(res,rej){if(isMemoryMode){res([]);return;}try{var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=function(){res(r.result||[]);};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
-    function dbPut(item){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
-    function dbPutMany(items){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);for(var i=0;i<items.length;i++)store.put(items[i]);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};}catch(e){rej(e);}});}
-    function dbClear(){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).clear();tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
-    function dbDelete(id){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
-    
-    function migrateOld(){try{var o=localStorage.getItem('obj_remarks');if(!o)return Promise.resolve(0);var d=JSON.parse(o);if(!Array.isArray(d)||d.length===0){localStorage.removeItem('obj_remarks');return Promise.resolve(0);}return dbGetAll().then(function(ex){if(ex.length>0){localStorage.removeItem('obj_remarks');return 0;}var t=[];for(var i=0;i<d.length;i++){if(!d[i].photos) d[i].photos = d[i].photo ? [d[i].photo] : []; t.push(dbPut(d[i]));}return Promise.all(t).then(function(){localStorage.removeItem('obj_remarks');return d.length;});});}catch(e){try{localStorage.removeItem('obj_remarks');}catch(x){}return Promise.resolve(0);}}
-    
-    var remarks=[],editingId=null,currentPhotos=[],deleteTargetId=null,lastLocation='', isSelectMode=false, selectedIds=[], deleteActionType='single';
-    var $=function(id){return document.getElementById(id);};
-    var screenList=$('screen-list'),screenForm=$('screen-form'),screenDetail=$('screen-detail'),listContent=$('list-content'),detailContent=$('detail-content');
-    var listTitle=$('list-title'),formTitle=$('form-title'),detailTitleEl=$('detail-title'),remarkForm=$('remark-form'),photoBlock=$('photo-block'),photoPlaceholder=$('photo-placeholder');
-    var inputCamera=$('input-camera'),photosGrid=$('photos-grid');
-    var inputDesc=$('input-desc'),inputLoc=$('input-loc'),inputNorm=$('input-norm'),btnSave=$('btn-save'),toastEl=$('toast'),deleteModal=$('delete-modal'),clearModal=$('clear-modal'),fabBtn=$('btn-add'),bottomSheet=$('bottom-sheet'),inputImportHtml=$('input-import-html');
-    var headerNormal=$('header-normal'), headerSelect=$('header-select'), selectTitle=$('select-title'), clearModalTitle=$('clear-modal-title');
-    
-    function showToast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){toastEl.classList.remove('show');},3000);}
-    function formatDate(i){try{return new Date(i).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return '—';}}
-    function esc(t){var d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
-    function genId(){return Date.now().toString(36)+'-'+Math.random().toString(36).substr(2,6);}
-    function compressImage(f,cb){var r=new FileReader();r.onerror=function(){cb(null);};r.onload=function(e){var img=new Image();img.onerror=function(){cb(null);};img.onload=function(){var M=1200,w=img.width,h=img.height;if(w>M||h>M){if(w>h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;}}var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.85));};img.src=e.target.result;};r.readAsDataURL(f);}
-    function saveLastLoc(){try{localStorage.setItem('obj_last_loc',lastLocation);}catch(e){}}
-    function loadLastLoc(){try{lastLocation=localStorage.getItem('obj_last_loc')||'';}catch(e){lastLocation='';}}
-    
-    function showScreen(n){
-        screenList.classList.remove('active');screenForm.classList.remove('active');screenDetail.classList.remove('active');
-        fabBtn.style.display=(n==='list' && !isSelectMode)?'flex':'none';
-        if(n==='list'){screenList.classList.add('active');renderList();}
-        else if(n==='form'){screenForm.classList.add('active');}
-        else if(n==='detail'){screenDetail.classList.add('active');}
-    }
-    
-    function enterSelectMode(){
-        isSelectMode=true; selectedIds=[];
-        headerNormal.style.display='none'; headerSelect.style.display='flex';
-        fabBtn.style.display='none'; updateSelectTitle(); renderList();
-    }
-    function exitSelectMode(){
-        isSelectMode=false; selectedIds=[];
-        headerNormal.style.display='flex'; headerSelect.style.display='none';
-        renderList();
-    }
-    function updateSelectTitle(){ selectTitle.textContent = 'Выбрано: ' + selectedIds.length; }
-    
-    function toggleSelect(id){
-        var idx = selectedIds.indexOf(id);
-        if(idx > -1) selectedIds.splice(idx, 1); else selectedIds.push(id);
-        var cards = listContent.querySelectorAll('.remark-card');
-        for(var i=0; i<cards.length; i++){
-            if(cards[i].dataset.id === id) cards[i].classList.toggle('sel', selectedIds.indexOf(id) > -1);
+    <script>
+        if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
+        
+        var DB_NAME='PriemkaDB',DB_VER=2,STORE='remarks',db=null, isMemoryMode=false;
+        
+        function openDB(){return new Promise(function(res,rej){try{var r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
+        function dbGetAll(){return new Promise(function(res,rej){if(isMemoryMode){res([]);return;}try{var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=function(){res(r.result||[]);};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
+        function dbPut(item){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
+        function dbPutMany(items){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);for(var i=0;i<items.length;i++)store.put(items[i]);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};}catch(e){rej(e);}});}
+        function dbClear(){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).clear();tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
+        function dbDelete(id){return new Promise(function(res,rej){if(isMemoryMode){res();return;}try{var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};}catch(e){rej(e);}});}
+        
+        function migrateOld(){try{var o=localStorage.getItem('obj_remarks');if(!o)return Promise.resolve(0);var d=JSON.parse(o);if(!Array.isArray(d)||d.length===0){localStorage.removeItem('obj_remarks');return Promise.resolve(0);}return dbGetAll().then(function(ex){if(ex.length>0){localStorage.removeItem('obj_remarks');return 0;}var t=[];for(var i=0;i<d.length;i++){if(!d[i].photos) d[i].photos = d[i].photo ? [d[i].photo] : []; t.push(dbPut(d[i]));}return Promise.all(t).then(function(){localStorage.removeItem('obj_remarks');return d.length;});});}catch(e){try{localStorage.removeItem('obj_remarks');}catch(x){}return Promise.resolve(0);}}
+        
+        var remarks=[],editingId=null,currentPhotos=[],deleteTargetId=null,lastLocation='', isSelectMode=false, selectedIds=[], deleteActionType='single';
+        var $=function(id){return document.getElementById(id);};
+        var screenList=$('screen-list'),screenForm=$('screen-form'),screenDetail=$('screen-detail'),listContent=$('list-content'),detailContent=$('detail-content');
+        var listTitle=$('list-title'),formTitle=$('form-title'),detailTitleEl=$('detail-title'),remarkForm=$('remark-form'),photoBlock=$('photo-block'),photoPlaceholder=$('photo-placeholder');
+        var inputCamera=$('input-camera'),photosGrid=$('photos-grid');
+        var inputDesc=$('input-desc'),inputLoc=$('input-loc'),inputNorm=$('input-norm'),btnSave=$('btn-save'),toastEl=$('toast'),deleteModal=$('delete-modal'),clearModal=$('clear-modal'),fabBtn=$('btn-add'),bottomSheet=$('bottom-sheet'),inputImportHtml=$('input-import-html');
+        
+        var headerNormal=$('header-normal'), headerSelect=$('header-select'), selectTitle=$('select-title');
+        
+        function showToast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(function(){toastEl.classList.remove('show');},3000);}
+        function formatDate(i){try{return new Date(i).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});}catch(e){return '—';}}
+        function esc(t){var d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
+        function genId(){return Date.now().toString(36)+'-'+Math.random().toString(36).substr(2,6);}
+        function compressImage(f,cb){var r=new FileReader();r.onerror=function(){cb(null);};r.onload=function(e){var img=new Image();img.onerror=function(){cb(null);};img.onload=function(){var M=1200,w=img.width,h=img.height;if(w>M||h>M){if(w>h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;}}var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.85));};img.src=e.target.result;};r.readAsDataURL(f);}
+        function saveLastLoc(){try{localStorage.setItem('obj_last_loc',lastLocation);}catch(e){}}
+        function loadLastLoc(){try{lastLocation=localStorage.getItem('obj_last_loc')||'';}catch(e){lastLocation='';}}
+        
+        function showScreen(n){
+            screenList.classList.remove('active');screenForm.classList.remove('active');screenDetail.classList.remove('active');
+            fabBtn.style.display=(n==='list' && !isSelectMode)?'flex':'none';
+            if(n==='list'){screenList.classList.add('active');renderList();}
+            else if(n==='form'){screenForm.classList.add('active');}
+            else if(n==='detail'){screenDetail.classList.add('active');}
         }
-        updateSelectTitle();
-    }
-    
-    function deleteSelected(){
-        if(selectedIds.length===0){showToast('Выберите замечания');return;}
-        deleteActionType='selected';
-        clearModalTitle.textContent = 'Удалить выбранные?';
-        $('clear-count').textContent=selectedIds.length;
-        clearModal.classList.add('show');
-    }
-    
-    function performDeleteSelected(){
-        var promises = [];
-        for(var i=0; i<selectedIds.length; i++){
-            var id = selectedIds[i];
-            remarks = remarks.filter(function(r){ return r.id !== id; });
-            promises.push(dbDelete(id));
+        
+        function enterSelectMode(){
+            isSelectMode=true; selectedIds=[];
+            if(headerNormal) headerNormal.style.display='none'; 
+            if(headerSelect) headerSelect.style.display='flex';
+            fabBtn.style.display='none'; updateSelectTitle(); renderList();
         }
-        Promise.all(promises).then(function(){
-            showToast('Удалено: '+selectedIds.length);
-            exitSelectMode();
-        }).catch(function(){showToast('Ошибка удаления');});
-    }
+        function exitSelectMode(){
+            isSelectMode=false; selectedIds=[];
+            if(headerNormal) headerNormal.style.display='flex'; 
+            if(headerSelect) headerSelect.style.display='none';
+            renderList();
+        }
+        function updateSelectTitle(){ if(selectTitle) selectTitle.textContent = 'Выбрано: ' + selectedIds.length; }
+        function toggleSelect(id){
+            var idx = selectedIds.indexOf(id);
+            if(idx > -1) selectedIds.splice(idx, 1); else selectedIds.push(id);
+            var cards = listContent.querySelectorAll('.remark-card');
+            for(var i=0; i<cards.length; i++){
+                if(cards[i].dataset.id === id) cards[i].classList.toggle('sel', selectedIds.indexOf(id) > -1);
+            }
+            updateSelectTitle();
+        }
+        function deleteSelected(){
+            if(selectedIds.length===0){showToast('Выберите замечания');return;}
+            deleteActionType='selected';
+            $('clear-count').textContent=selectedIds.length;
+            $('clear-modal-title').textContent='Удалить выбранные замечания?';
+            clearModal.classList.add('show');
+        }
+        function performDeleteSelected(){
+            var promises = [];
+            for(var i=0; i<selectedIds.length; i++){
+                var id = selectedIds[i];
+                remarks = remarks.filter(function(r){ return r.id !== id; });
+                promises.push(dbDelete(id));
+            }
+            Promise.all(promises).then(function(){
+                showToast('Удалено: '+selectedIds.length);
+                exitSelectMode();
+            }).catch(function(){showToast('Ошибка удаления');});
+        }
 
-    function getDisplayNum(id){for(var i=0;i<remarks.length;i++){if(remarks[i].id===id)return i+1;}return '?';}
-    
-    function renderList(){
-        if(remarks.length>0){listTitle.innerHTML='Приёмка объекта <span class="counter-badge">'+remarks.length+'</span>';}else{listTitle.textContent='Приёмка объекта';}
-        if(remarks.length===0){listContent.innerHTML='<div class="empty-state"><span class="material-icons-round">assignment_late</span><p>Замечаний пока нет<br>Нажмите <strong>+</strong> для добавления</p></div>';return;}
-        var h='';
-        for(var i=remarks.length-1;i>=0;i--){
-            var r=remarks[i],n=i+1;
+        function getDisplayNum(id){for(var i=0;i<remarks.length;i++){if(remarks[i].id===id)return i+1;}return '?';}
+        
+        function renderList(){
+            if(remarks.length>0){listTitle.innerHTML='Приёмка объекта <span class="counter-badge">'+remarks.length+'</span>';}else{listTitle.textContent='Приёмка объекта';}
+            if(remarks.length===0){listContent.innerHTML='<div class="empty-state"><span class="material-icons-round">assignment_late</span><p>Замечаний пока нет<br>Нажмите <strong>+</strong> для добавления</p></div>';return;}
+            var h='';
+            for(var i=remarks.length-1;i>=0;i--){
+                var r=remarks[i],n=i+1;
+                var photos = r.photos || [];
+                var thumbSrc = photos.length > 0 ? photos[0] : '';
+                var badge = photos.length > 1 ? '<div class="thumb-badge">+'+(photos.length-1)+'</div>' : '';
+                var isSel = (isSelectMode && selectedIds.indexOf(r.id) > -1) ? ' sel' : '';
+                var cbHtml = isSelectMode ? '<div class="custom-cb"><span class="material-icons-round">check</span></div>' : '';
+                
+                h+='<div class="remark-card'+isSel+'" data-id="'+r.id+'" style="animation-delay:'+((remarks.length-1-i)*40)+'ms">'
+                    +cbHtml
+                    +'<div class="thumb-wrap"><img class="thumb" src="'+thumbSrc+'" alt="" onerror="this.style.display=\'none\'">'+badge+'</div>'
+                    +'<div class="info"><div class="num">Замечание #'+n+'</div><div class="desc">'+esc(r.description)+'</div><div class="loc"><span class="material-icons-round">place</span>'+esc(r.location)+'</div></div></div>';
+            }
+            listContent.innerHTML=h;
+            var cards=listContent.querySelectorAll('.remark-card');
+            for(var j=0;j<cards.length;j++){
+                (function(c){
+                    c.addEventListener('click',function(){
+                        if(isSelectMode){ toggleSelect(c.dataset.id); }
+                        else { openDetail(c.dataset.id); }
+                    });
+                })(cards[j]);
+            }
+        }
+        
+        function openDetail(id){
+            var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;
+            detailTitleEl.textContent='Замечание #'+getDisplayNum(id);
             var photos = r.photos || [];
-            var thumbSrc = photos.length > 0 ? photos[0] : '';
-            var badge = photos.length > 1 ? '<div class="thumb-badge">+'+(photos.length-1)+'</div>' : '';
-            var isSel = (isSelectMode && selectedIds.indexOf(r.id) > -1) ? ' sel' : '';
-            var cbHtml = isSelectMode ? '<div class="custom-cb"><span class="material-icons-round">check</span></div>' : '';
-            
-            h+='<div class="remark-card'+isSel+'" data-id="'+r.id+'" style="animation-delay:'+((remarks.length-1-i)*40)+'ms">'
-                +cbHtml
-                +'<div class="thumb-wrap"><img class="thumb" src="'+thumbSrc+'" alt="" onerror="this.style.display=\'none\'">'+badge+'</div>'
-                +'<div class="info"><div class="num">Замечание #'+n+'</div><div class="desc">'+esc(r.description)+'</div><div class="loc"><span class="material-icons-round">place</span>'+esc(r.location)+'</div></div></div>';
+            var photosHtml = '';
+            for(var p=0; p<photos.length; p++) { photosHtml += '<img class="detail-photo" src="'+photos[p]+'" alt="">'; }
+            detailContent.innerHTML=photosHtml
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">report_problem</span>Описание нарушения</div><div class="value">'+esc(r.description)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">place</span>Место обнаружения</div><div class="value">'+esc(r.location)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">gavel</span>Нормативный документ</div><div class="value">'+(esc(r.normative)||'—')+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">calendar_today</span>Дата фиксации</div><div class="value">'+formatDate(r.createdAt)+'</div></div>'
+                +'<div class="detail-actions"><button class="btn-edit" id="btn-edit-r"><span class="material-icons-round" style="font-size:18px">edit</span>Редактировать</button><button class="btn-delete" id="btn-del-r"><span class="material-icons-round" style="font-size:18px">delete</span>Удалить</button></div>';
+            $('btn-edit-r').addEventListener('click',function(){openEditForm(id);});
+            $('btn-del-r').addEventListener('click',function(){deleteTargetId=id;deleteModal.classList.add('show');});
+            showScreen('detail');
         }
-        listContent.innerHTML=h;
-        var cards=listContent.querySelectorAll('.remark-card');
-        for(var j=0;j<cards.length;j++){
-            (function(c){
-                c.addEventListener('click',function(){
-                    if(isSelectMode){ toggleSelect(c.dataset.id); }
-                    else { openDetail(c.dataset.id); }
-                });
-            })(cards[j]);
+        
+        function openAddForm(){editingId=null;currentPhotos=[];formTitle.textContent='Новое замечание';btnSave.textContent='Сохранить';resetForm();inputLoc.value=lastLocation;showScreen('form');}
+        function openEditForm(id){
+            var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;
+            editingId=id; currentPhotos = r.photos ? r.photos.slice() : [];
+            formTitle.textContent='Редактирование';btnSave.textContent='Обновить';
+            inputDesc.value=r.description;inputLoc.value=r.location;inputNorm.value=r.normative;
+            renderFormPhotos(); showScreen('form');
         }
-    }
-    
-    function openDetail(id){
-        var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;
-        detailTitleEl.textContent='Замечание #'+getDisplayNum(id);
-        var photos = r.photos || [];
-        var photosHtml = '';
-        for(var p=0; p<photos.length; p++) { photosHtml += '<img class="detail-photo" src="'+photos[p]+'" alt="">'; }
-        detailContent.innerHTML=photosHtml
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">report_problem</span>Описание нарушения</div><div class="value">'+esc(r.description)+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">place</span>Место обнаружения</div><div class="value">'+esc(r.location)+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">gavel</span>Нормативный документ</div><div class="value">'+(esc(r.normative)||'—')+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">calendar_today</span>Дата фиксации</div><div class="value">'+formatDate(r.createdAt)+'</div></div>'
-            +'<div class="detail-actions"><button class="btn-edit" id="btn-edit-r"><span class="material-icons-round" style="font-size:18px">edit</span>Редактировать</button><button class="btn-delete" id="btn-del-r"><span class="material-icons-round" style="font-size:18px">delete</span>Удалить</button></div>';
-        $('btn-edit-r').addEventListener('click',function(){openEditForm(id);});
-        $('btn-del-r').addEventListener('click',function(){deleteTargetId=id;deleteModal.classList.add('show');});
-        showScreen('detail');
-    }
-    
-    function openAddForm(){editingId=null;currentPhotos=[];formTitle.textContent='Новое замечание';btnSave.textContent='Сохранить';resetForm();inputLoc.value=lastLocation;showScreen('form');}
-    function openEditForm(id){
-        var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;
-        editingId=id; currentPhotos = r.photos ? r.photos.slice() : [];
-        formTitle.textContent='Редактирование';btnSave.textContent='Обновить';
-        inputDesc.value=r.description;inputLoc.value=r.location;inputNorm.value=r.normative;
-        renderFormPhotos(); showScreen('form');
-    }
-    function resetForm(){inputDesc.value='';inputLoc.value='';inputNorm.value='';currentPhotos=[];renderFormPhotos();}
-    
-    function renderFormPhotos(){
-        if(currentPhotos.length === 0){
-            photoPlaceholder.style.display = 'flex'; photosGrid.style.display = 'none'; photoBlock.classList.remove('has-photo');
-        } else {
-            photoPlaceholder.style.display = 'none'; photosGrid.style.display = 'flex'; photoBlock.classList.add('has-photo');
-            var html = '';
-            for(var i=0; i<currentPhotos.length; i++){ html += '<div class="photos-grid-item"><img src="'+currentPhotos[i]+'"><button type="button" class="photos-grid-del" data-idx="'+i+'">×</button></div>'; }
-            html += '<div class="photos-grid-add" id="btn-add-more-photo"><span class="material-icons-round" style="font-size:28px">add</span></div>';
-            photosGrid.innerHTML = html;
+        function resetForm(){inputDesc.value='';inputLoc.value='';inputNorm.value='';currentPhotos=[];renderFormPhotos();}
+        
+        function renderFormPhotos(){
+            if(currentPhotos.length === 0){
+                photoPlaceholder.style.display = 'flex'; photosGrid.style.display = 'none'; photoBlock.classList.remove('has-photo');
+            } else {
+                photoPlaceholder.style.display = 'none'; photosGrid.style.display = 'flex'; photoBlock.classList.add('has-photo');
+                var html = '';
+                for(var i=0; i<currentPhotos.length; i++){ html += '<div class="photos-grid-item"><img src="'+currentPhotos[i]+'"><button type="button" class="photos-grid-del" data-idx="'+i+'">×</button></div>'; }
+                html += '<div class="photos-grid-add" id="btn-add-more-photo"><span class="material-icons-round" style="font-size:28px">add</span></div>';
+                photosGrid.innerHTML = html;
+            }
         }
-    }
-    
-    function saveRemark(){
-        var d=inputDesc.value.trim(),l=inputLoc.value.trim(),n=inputNorm.value.trim();
-        if(currentPhotos.length===0){showToast('Сделайте хотя бы один снимок');return;}
-        if(!d){showToast('Укажите описание нарушения');inputDesc.focus();return;}
-        if(!l){showToast('Укажите место обнаружения');inputLoc.focus();return;}
-        lastLocation=l;saveLastLoc();
-        if(editingId!==null){
-            var it=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===editingId){it=remarks[i];break;}}
-            if(it){it.photos=currentPhotos.slice();it.description=d;it.location=l;it.normative=n;}
-            dbPut(it).then(function(){showToast('Замечание обновлено');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
-        } else {
-            var ni={id:genId(),photos:currentPhotos.slice(),description:d,location:l,normative:n,createdAt:new Date().toISOString()};
-            remarks.push(ni);
-            dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});
+        
+        function saveRemark(){
+            var d=inputDesc.value.trim(),l=inputLoc.value.trim(),n=inputNorm.value.trim();
+            if(currentPhotos.length===0){showToast('Сделайте хотя бы один снимок');return;}
+            if(!d){showToast('Укажите описание нарушения');inputDesc.focus();return;}
+            if(!l){showToast('Укажите место обнаружения');inputLoc.focus();return;}
+            lastLocation=l;saveLastLoc();
+            if(editingId!==null){
+                var it=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===editingId){it=remarks[i];break;}}
+                if(it){it.photos=currentPhotos.slice();it.description=d;it.location=l;it.normative=n;}
+                dbPut(it).then(function(){showToast('Замечание обновлено');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
+            } else {
+                var ni={id:genId(),photos:currentPhotos.slice(),description:d,location:l,normative:n,createdAt:new Date().toISOString()};
+                remarks.push(ni);
+                dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});
+            }
         }
-    }
-    
-    function deleteRemark(id){var f=[];for(var i=0;i<remarks.length;i++){if(remarks[i].id!==id)f.push(remarks[i]);}remarks=f;dbDelete(id).then(function(){showToast('Замечание удалено');showScreen('list');}).catch(function(){showToast('Ошибка удаления');});}
-    function clearAllRemarks(){dbClear().then(function(){remarks=[];showToast('Все замечания удалены');showScreen('list');}).catch(function(){showToast('Ошибка очистки');});}
+        
+        function deleteRemark(id){var f=[];for(var i=0;i<remarks.length;i++){if(remarks[i].id!==id)f.push(remarks[i]);}remarks=f;dbDelete(id).then(function(){showToast('Замечание удалено');showScreen('list');}).catch(function(){showToast('Ошибка удаления');});}
+        function clearAllRemarks(){dbClear().then(function(){remarks=[];showToast('Все замечания удалены');showScreen('list');}).catch(function(){showToast('Ошибка очистки');});}
 
-    function exportToHtml(){
-        if(remarks.length===0){showToast('Нет замечаний');return;}
-        var ds=new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}),t=remarks.length,tr='';
-        for(var i=0;i<remarks.length;i++){
-            var r=remarks[i], photos = r.photos || [];
-            var ph='—'; if(photos.length>0){ ph=''; for(var p=0; p<photos.length; p++){ ph+='<img src="'+photos[p]+'" style="max-width:100%;max-height:150px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 4px;border:1px solid #ccc;"/>'; } }
-            tr+='<tr><td style="width:5%;text-align:center;vertical-align:middle;font-weight:bold;border:1px solid #000;padding:4px;">'+(i+1)+'</td><td style="width:20%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;">'+ph+'</td><td style="width:33%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:10pt;">'+esc(r.description)+'</td><td style="width:15%;vertical-align:middle;border:1px solid #000;padding:4px;">'+esc(r.location)+'</td><td style="width:19%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+(esc(r.normative)||'—')+'</td><td style="width:8%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+formatDate(r.createdAt)+'</td></tr>';
+        function exportToHtml(){
+            if(remarks.length===0){showToast('Нет замечаний');return;}
+            var ds=new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}),t=remarks.length,tr='';
+            for(var i=0;i<remarks.length;i++){
+                var r=remarks[i], photos = r.photos || [];
+                var ph='—'; if(photos.length>0){ ph=''; for(var p=0; p<photos.length; p++){ ph+='<img src="'+photos[p]+'" style="max-width:100%;max-height:150px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto 4px;border:1px solid #ccc;"/>'; } }
+                tr+='<tr><td style="width:5%;text-align:center;vertical-align:middle;font-weight:bold;border:1px solid #000;padding:4px;">'+(i+1)+'</td><td style="width:20%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;">'+ph+'</td><td style="width:33%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:10pt;">'+esc(r.description)+'</td><td style="width:15%;vertical-align:middle;border:1px solid #000;padding:4px;">'+esc(r.location)+'</td><td style="width:19%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+(esc(r.normative)||'—')+'</td><td style="width:8%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+formatDate(r.createdAt)+'</td></tr>';
+            }
+            var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Акт замечаний</title><style>@page{size:landscape;margin:10mm;}@media print{.no-print{display:none!important;}}body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#000;margin:10mm;}h1{text-align:center;font-size:15pt;margin-bottom:2mm;}.sub{text-align:center;font-size:10pt;color:#444;margin-bottom:5mm;}table{border-collapse:collapse;width:100%;}th{background-color:#D35400;color:#fff;font-size:9pt;font-weight:bold;text-align:center;border:1px solid #000;padding:5px 4px;}.sig{margin-top:10mm;width:100%;}.sig td{border:none;width:50%;padding:4mm 2mm;font-size:10pt;vertical-align:bottom;}.sig-line{border-bottom:1px solid #000;display:inline-block;width:140px;margin-left:4px;}.no-print{margin:8mm 0;text-align:center;}.no-print button{padding:10px 28px;font-size:12pt;font-family:"Times New Roman",serif;cursor:pointer;background:#D35400;color:#fff;border:none;border-radius:6px;}</style></head><body><h1>АКТ замечаний при приёмке объекта</h1><p class="sub">Дата формирования: '+ds+'&emsp;&emsp;Количество замечаний: '+t+'</p><table><tr><th style="width:5%">№</th><th style="width:20%">Фото</th><th style="width:33%">Описание нарушения</th><th style="width:15%">Место</th><th style="width:19%">Норматив</th><th style="width:8%">Дата</th></tr>'+tr+'</table><table class="sig"><tr><td>Составил: <span class="sig-line"></span></td><td>Проверил: <span class="sig-line"></span></td></tr></table><div class="no-print"><button onclick="window.print()">Печать / PDF</button></div></body></html>';
+            var blob=new Blob([html],{type:'text/html;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='Замечания_'+ds.replace(/\./g,'-')+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Файл HTML выгружен');
         }
-        var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Акт замечаний</title><style>@page{size:landscape;margin:10mm;}@media print{.no-print{display:none!important;}}body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#000;margin:10mm;}h1{text-align:center;font-size:15pt;margin-bottom:2mm;}.sub{text-align:center;font-size:10pt;color:#444;margin-bottom:5mm;}table{border-collapse:collapse;width:100%;}th{background-color:#D35400;color:#fff;font-size:9pt;font-weight:bold;text-align:center;border:1px solid #000;padding:5px 4px;}.sig{margin-top:10mm;width:100%;}.sig td{border:none;width:50%;padding:4mm 2mm;font-size:10pt;vertical-align:bottom;}.sig-line{border-bottom:1px solid #000;display:inline-block;width:140px;margin-left:4px;}.no-print{margin:8mm 0;text-align:center;}.no-print button{padding:10px 28px;font-size:12pt;font-family:"Times New Roman",serif;cursor:pointer;background:#D35400;color:#fff;border:none;border-radius:6px;}</style></head><body><h1>АКТ замечаний при приёмке объекта</h1><p class="sub">Дата формирования: '+ds+'&emsp;&emsp;Количество замечаний: '+t+'</p><table><tr><th style="width:5%">№</th><th style="width:20%">Фото</th><th style="width:33%">Описание нарушения</th><th style="width:15%">Место</th><th style="width:19%">Норматив</th><th style="width:8%">Дата</th></tr>'+tr+'</table><table class="sig"><tr><td>Составил: <span class="sig-line"></span></td><td>Проверил: <span class="sig-line"></span></td></tr></table><div class="no-print"><button onclick="window.print()">Печать / PDF</button></div></body></html>';
-        var blob=new Blob([html],{type:'text/html;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='Замечания_'+ds.replace(/\./g,'-')+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Файл HTML выгружен');
-    }
 
-    function importHtmlData(file){
-        var reader = new FileReader();
-        reader.onload = function(e){
-            try {
-                var doc = new DOMParser().parseFromString(e.target.result, 'text/html');
-                var rows = doc.querySelectorAll('table tr');
-                var newRemarks = [];
-                for(var i=1; i<rows.length; i++){
-                    var tds = rows[i].querySelectorAll('td');
-                    if(tds.length < 6) continue;
-                    var imgs = tds[1].querySelectorAll('img');
-                    var photosArr = [];
-                    for(var j=0; j<imgs.length; j++){var src = imgs[j].getAttribute('src');if(src && src.startsWith('data:image')) photosArr.push(src);}
-                    if(photosArr.length === 0) continue;
-                    var desc = tds[2].textContent.trim();
-                    var loc = tds[3].textContent.trim();
-                    var norm = tds[4].textContent.trim(); if(norm === '—') norm = '';
-                    var dateStr = tds[5].textContent.trim();
-                    var parts = dateStr.split('.'); var isoDate = new Date(parts[2], parts[1]-1, parts[0]).toISOString();
-                    newRemarks.push({id: genId(), photos: photosArr, description: desc, location: loc, normative: norm, createdAt: isoDate});
-                }
-                if(newRemarks.length === 0){showToast('Не найдено данных');return;}
-                for(var k=0; k<newRemarks.length; k++) remarks.push(newRemarks[k]);
-                dbPutMany(remarks).then(function(){showToast('Импортировано: '+newRemarks.length);showScreen('list');}).catch(function(){showToast('Ошибка сохранения импорта');});
-            } catch(err) { console.error(err); showToast('Ошибка чтения файла'); }
-        };
-        reader.readAsText(file);
-    }
-
-    /* Обработчики */
-    fabBtn.addEventListener('click',openAddForm);
-    $('btn-export').addEventListener('click',exportToHtml);
-    $('btn-form-back').addEventListener('click',function(){showScreen('list');});
-    $('btn-detail-back').addEventListener('click',function(){showScreen('list');});
-    
-    photoPlaceholder.addEventListener('click',function(){inputCamera.click();});
-    photosGrid.addEventListener('click', function(e) {
-        if (e.target.closest('.photos-grid-del')) { e.stopPropagation(); currentPhotos.splice(parseInt(e.target.closest('.photos-grid-del').dataset.idx), 1); renderFormPhotos(); }
-        else if (e.target.closest('.photos-grid-add')) { e.stopPropagation(); inputCamera.click(); }
-    });
-
-    inputCamera.addEventListener('change',function(){
-        if(!inputCamera.files.length) return;
-        var processed = 0; var total = inputCamera.files.length;
-        for(var i=0; i<total; i++){
-            (function(file){ compressImage(file, function(b){ if(b) currentPhotos.push(b); processed++; if(processed === total) renderFormPhotos(); }); })(inputCamera.files[i]);
+        function importHtmlData(file){
+            var reader = new FileReader();
+            reader.onload = function(e){
+                try {
+                    var doc = new DOMParser().parseFromString(e.target.result, 'text/html');
+                    var rows = doc.querySelectorAll('table tr');
+                    var newRemarks = [];
+                    for(var i=1; i<rows.length; i++){
+                        var tds = rows[i].querySelectorAll('td');
+                        if(tds.length < 6) continue;
+                        var imgs = tds[1].querySelectorAll('img');
+                        var photosArr = [];
+                        for(var j=0; j<imgs.length; j++){var src = imgs[j].getAttribute('src');if(src && src.startsWith('data:image')) photosArr.push(src);}
+                        if(photosArr.length === 0) continue;
+                        var desc = tds[2].textContent.trim();
+                        var loc = tds[3].textContent.trim();
+                        var norm = tds[4].textContent.trim(); if(norm === '—') norm = '';
+                        var dateStr = tds[5].textContent.trim();
+                        var parts = dateStr.split('.'); var isoDate = new Date(parts[2], parts[1]-1, parts[0]).toISOString();
+                        newRemarks.push({id: genId(), photos: photosArr, description: desc, location: loc, normative: norm, createdAt: isoDate});
+                    }
+                    if(newRemarks.length === 0){showToast('Не найдено данных');return;}
+                    for(var k=0; k<newRemarks.length; k++) remarks.push(newRemarks[k]);
+                    dbPutMany(remarks).then(function(){showToast('Импортировано: '+newRemarks.length);showScreen('list');}).catch(function(){showToast('Ошибка сохранения импорта');});
+                } catch(err) { console.error(err); showToast('Ошибка чтения файла'); }
+            };
+            reader.readAsText(file);
         }
-        inputCamera.value='';
-    });
-    
-    remarkForm.addEventListener('submit',function(e){e.preventDefault();saveRemark();});
-    
-    $('btn-modal-cancel').addEventListener('click',function(){deleteModal.classList.remove('show');deleteTargetId=null;});
-    $('btn-modal-confirm').addEventListener('click',function(){if(deleteTargetId!==null)deleteRemark(deleteTargetId);deleteTargetId=null;deleteModal.classList.remove('show');});
-    deleteModal.addEventListener('click',function(e){if(e.target===deleteModal){deleteModal.classList.remove('show');deleteTargetId=null;}});
 
-    $('btn-clear-cancel').addEventListener('click',function(){clearModal.classList.remove('show'); deleteActionType='single';});
-    $('btn-clear-confirm').addEventListener('click',function(){
-        clearModal.classList.remove('show');
-        if(deleteActionType === 'selected') { performDeleteSelected(); deleteActionType='single'; }
-        else { clearAllRemarks(); }
-    });
-    clearModal.addEventListener('click',function(e){if(e.target===clearModal){clearModal.classList.remove('show'); deleteActionType='single';}});
+        fabBtn.addEventListener('click',openAddForm);
+        $('btn-export').addEventListener('click',exportToHtml);
+        $('btn-form-back').addEventListener('click',function(){showScreen('list');});
+        $('btn-detail-back').addEventListener('click',function(){showScreen('list');});
+        
+        photoPlaceholder.addEventListener('click',function(){inputCamera.click();});
+        photosGrid.addEventListener('click', function(e) {
+            if (e.target.closest('.photos-grid-del')) { e.stopPropagation(); currentPhotos.splice(parseInt(e.target.closest('.photos-grid-del').dataset.idx), 1); renderFormPhotos(); }
+            else if (e.target.closest('.photos-grid-add')) { e.stopPropagation(); inputCamera.click(); }
+        });
 
-    $('btn-select-mode').addEventListener('click', enterSelectMode);
-    $('btn-exit-select').addEventListener('click', exitSelectMode);
-    $('btn-del-selected').addEventListener('click', deleteSelected);
+        inputCamera.addEventListener('change',function(){
+            if(!inputCamera.files.length) return;
+            var processed = 0; var total = inputCamera.files.length;
+            for(var i=0; i<total; i++){
+                (function(file){ compressImage(file, function(b){ if(b) currentPhotos.push(b); processed++; if(processed === total) renderFormPhotos(); }); })(inputCamera.files[i]);
+            }
+            inputCamera.value='';
+        });
+        
+        remarkForm.addEventListener('submit',function(e){e.preventDefault();saveRemark();});
+        
+        $('btn-modal-cancel').addEventListener('click',function(){deleteModal.classList.remove('show');deleteTargetId=null;});
+        $('btn-modal-confirm').addEventListener('click',function(){if(deleteTargetId!==null)deleteRemark(deleteTargetId);deleteTargetId=null;deleteModal.classList.remove('show');});
+        deleteModal.addEventListener('click',function(e){if(e.target===deleteModal){deleteModal.classList.remove('show');deleteTargetId=null;}});
 
-    $('btn-menu').addEventListener('click',function(){bottomSheet.classList.add('show');});
-    bottomSheet.addEventListener('click',function(e){if(e.target===bottomSheet)bottomSheet.classList.remove('show');});
-    $('menu-export-html').addEventListener('click',function(){bottomSheet.classList.remove('show');exportToHtml();});
-    $('menu-import-html').addEventListener('click',function(){bottomSheet.classList.remove('show');inputImportHtml.click();});
-    $('menu-clear-all').addEventListener('click',function(){bottomSheet.classList.remove('show');if(remarks.length===0){showToast('Замечаний нет');return;}deleteActionType='all'; clearModalTitle.textContent = 'Удалить все замечания?'; $('clear-count').textContent=remarks.length;clearModal.classList.add('show');});
-    
-    inputImportHtml.addEventListener('change',function(){if(!inputImportHtml.files[0])return;importHtmlData(inputImportHtml.files[0]);inputImportHtml.value='';});
+        $('btn-clear-cancel').addEventListener('click',function(){clearModal.classList.remove('show'); deleteActionType='single';});
+        $('btn-clear-confirm').addEventListener('click',function(){
+            clearModal.classList.remove('show');
+            if(deleteActionType === 'selected') { performDeleteSelected(); deleteActionType='single'; }
+            else { clearAllRemarks(); }
+        });
+        clearModal.addEventListener('click',function(e){if(e.target===clearModal){clearModal.classList.remove('show'); deleteActionType='single';}});
 
-    /* Инициализация */
-    openDB().then(function(d){db=d; return dbGetAll();}).then(function(data){remarks=data; return migrateOld();}).then(function(){return dbGetAll();}).then(function(data){remarks=data; loadLastLoc(); renderList(); var ls=$('loading-screen'); ls.classList.add('hide'); setTimeout(function(){ls.remove();},300);}).catch(function(err){console.warn("БД заблокирована. Режим памяти:", err); isMemoryMode = true; remarks=[]; loadLastLoc(); renderList(); var ls=$('loading-screen'); ls.classList.add('hide'); setTimeout(function(){ls.remove();},300);});
-</script>
+        $('btn-select-mode').addEventListener('click', enterSelectMode);
+        $('btn-exit-select').addEventListener('click', exitSelectMode);
+        $('btn-del-selected').addEventListener('click', deleteSelected);
+
+        $('btn-menu').addEventListener('click',function(){bottomSheet.classList.add('show');});
+        bottomSheet.addEventListener('click',function(e){if(e.target===bottomSheet)bottomSheet.classList.remove('show');});
+        $('menu-export-html').addEventListener('click',function(){bottomSheet.classList.remove('show');exportToHtml();});
+        $('menu-import-html').addEventListener('click',function(){bottomSheet.classList.remove('show');inputImportHtml.click();});
+        $('menu-clear-all').addEventListener('click',function(){bottomSheet.classList.remove('show');if(remarks.length===0){showToast('Замечаний нет');return;}deleteActionType='all';$('clear-count').textContent=remarks.length; $('clear-modal-title').textContent='Удалить все замечания?'; clearModal.classList.add('show');});
+        
+        inputImportHtml.addEventListener('change',function(){if(!inputImportHtml.files[0])return;importHtmlData(inputImportHtml.files[0]);inputImportHtml.value='';});
+
+        openDB().then(function(d){db=d; return dbGetAll();}).then(function(data){remarks=data; return migrateOld();}).then(function(){return dbGetAll();}).then(function(data){remarks=data; loadLastLoc(); renderList(); var ls=$('loading-screen'); ls.classList.add('hide'); setTimeout(function(){ls.remove();},300);}).catch(function(err){console.warn("БД заблокирована. Режим памяти:", err); isMemoryMode = true; remarks=[]; loadLastLoc(); renderList(); var ls=$('loading-screen'); ls.classList.add('hide'); setTimeout(function(){ls.remove();},300);});
+    </script>
 </body>
 </html>

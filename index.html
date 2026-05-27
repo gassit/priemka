@@ -133,7 +133,6 @@
                 <div class="form-section"><label class="form-label" for="input-desc"><span class="material-icons-round">report_problem</span> Описание нарушения</label><textarea class="form-input" id="input-desc" placeholder="Опишите выявленное нарушение..." rows="3"></textarea></div>
                 <div class="form-section"><label class="form-label" for="input-loc"><span class="material-icons-round">place</span> Место обнаружения</label><input class="form-input" id="input-loc" type="text" placeholder="Этаж, помещение, зона..."></div>
                 <div class="form-section"><label class="form-label" for="input-norm"><span class="material-icons-round">gavel</span> Нормативный документ</label><input class="form-input" id="input-norm" type="text" placeholder="СП, ГОСТ, СНиП, пункт..."></div>
-                <!-- ИСПРАВЛЕНО: Добавлен отсутствующий id="btn-save" -->
                 <button type="submit" class="save-btn" id="btn-save">Сохранить</button>
             </form>
         </div>
@@ -159,20 +158,48 @@
         
         var DB_NAME='PriemkaDB',DB_VER=3,STORE='remarks',db=null;
         
-        // ИСПРАВЛЕНО: было r.success, правильно r.onsuccess
-        function openDB(){return new Promise(function(res,rej){var r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});};r.onsuccess=function(e){res(e.target.result);};r.onerror=function(){rej(r.error);};});}
+        function openDB(){
+            return new Promise(function(res,rej){
+                var r=indexedDB.open(DB_NAME,DB_VER);
+                r.onupgradeneeded=function(e){
+                    var d=e.target.result;
+                    if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});
+                };
+                r.onsuccess=function(e){res(e.target.result);};
+                r.onerror=function(){rej(r.error);};
+            });
+        }
         
         function dbGetAll(){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();r.onsuccess=function(){res(r.result||[]);};r.onerror=function(){rej(r.error);};});}
+        
         function dbPut(item){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
+        
         function dbPutMany(items){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);for(var i=0;i<items.length;i++)store.put(items[i]);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});}
+        
         function dbClear(){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).clear();tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
         
-        // ИСПРАВЛЕНО: добавлена закрывающая скобка }); в конце функции
-        function dbDelete(id){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
+        function dbDelete(id){
+            return new Promise(function(res,rej){
+                var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);
+                tx.oncomplete=function(){res();};
+                r.onerror=function(){rej(r.error);};
+            });
+        }
         
         function migratePhotos(data){for(var i=0;i<data.length;i++){if(data[i].photo&&!data[i].photos){data[i].photos=[data[i].photo];delete data[i].photo;}}return data;}
         
-        function migrateOld(){try{var o=localStorage.getItem('obj_remarks');if(!o)return Promise.resolve(0);var d=JSON.parse(o);if(!Array.isArray(d)||d.length===0){localStorage.removeItem('obj_remarks');return Promise.resolve(0);}return dbGetAll().then(function(ex){if(ex.length>0){localStorage.removeItem('obj_remarks');return 0;}migratePhotos(d);return dbPutMany(d);}).then(function(){localStorage.removeItem('obj_remarks');return d.length;});}catch(e){try{localStorage.removeItem('obj_remarks');}catch(x){}return Promise.resolve(0);}}
+        function migrateOld(){
+            try{
+                var o=localStorage.getItem('obj_remarks');
+                if(!o)return Promise.resolve(0);
+                var d=JSON.parse(o);
+                if(!Array.isArray(d)||d.length===0){localStorage.removeItem('obj_remarks');return Promise.resolve(0);}
+                return dbGetAll().then(function(ex){
+                    if(ex.length>0){localStorage.removeItem('obj_remarks');return 0;}
+                    migratePhotos(d);return dbPutMany(d);
+                }).then(function(){localStorage.removeItem('obj_remarks');return d.length;});
+            }catch(e){try{localStorage.removeItem('obj_remarks');}catch(x){}return Promise.resolve(0);}
+        }
         
         var remarks=[],editingId=null,deleteTargetId=null,lastLocation='',currentPhotos=[];
         var $=function(id){return document.getElementById(id);};
@@ -187,100 +214,182 @@
         function esc(t){var d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
         function genId(){return Date.now().toString(36)+'-'+Math.random().toString(36).substr(2,6);}
         
-        function compressImage(f,cb){var r=new FileReader();r.onerror=function(){cb(null);};r.onload=function(e){var img=new Image();img.onerror=function(){cb(null);};img.onload=function(){var M=1200,w=img.width,h=img.height;if(w>M||h>M){if(w>h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;}}var c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',0.85));};img.src=e.target.result;};r.readAsDataURL(f);}
+        function compressImage(f,cb){
+            var r=new FileReader();
+            r.onerror=function(){cb(null);};
+            r.onload=function(e){
+                var img=new Image();
+                img.onerror=function(){cb(null);};
+                img.onload=function(){
+                    var M=1200,w=img.width,h=img.height;
+                    if(w>M||h>M){if(w>h){h=Math.round(h*M/w);w=M;}else{w=Math.round(w*M/h);h=M;}}
+                    var c=document.createElement('canvas');c.width=w;c.height=h;
+                    c.getContext('2d').drawImage(img,0,0,w,h);
+                    cb(c.toDataURL('image/jpeg',0.85));
+                };
+                img.src=e.target.result;
+            };
+            r.readAsDataURL(f);
+        }
         
         function saveLastLoc(){try{localStorage.setItem('obj_last_loc',lastLocation);}catch(e){}}
         function loadLastLoc(){try{lastLocation=localStorage.getItem('obj_last_loc')||'';}catch(e){lastLocation='';}}
         
-        function showScreen(n){screenList.classList.remove('active');screenForm.classList.remove('active');screenDetail.classList.remove('active');fabBtn.style.display=(n==='list')?'flex':'none';if(n==='list'){screenList.classList.add('active');renderList();}else if(n==='form'){screenForm.classList.add('active');}else if(n==='detail'){screenDetail.classList.add('active');}}
+        function showScreen(n){
+            screenList.classList.remove('active');screenForm.classList.remove('active');screenDetail.classList.remove('active');
+            fabBtn.style.display=(n==='list')?'flex':'none';
+            if(n==='list'){screenList.classList.add('active');renderList();}
+            else if(n==='form'){screenForm.classList.add('active');}
+            else if(n==='detail'){screenDetail.classList.add('active');}
+        }
         
         function getDisplayNum(id){for(var i=0;i<remarks.length;i++){if(remarks[i].id===id)return i+1;}return'?';}
         
-        function renderList(){if(remarks.length>0){listTitle.innerHTML='Приёмка объекта <span class="counter-badge">'+remarks.length+'</span>';}else{listTitle.textContent='Приёмка объекта';}
-        if(remarks.length===0){listContent.innerHTML='<div class="empty-state"><span class="material-icons-round">assignment_late</span><p>Замечаний пока нет<br>Нажмите <strong>+</strong> для добавления</p></div>';return;}
-        var h='';for(var i=remarks.length-1;i>=0;i--){var r=remarks[i],n=i+1,photos=r.photos||[];var badge=photos.length>1?'<div class="photo-count-badge">'+photos.length+' фото</div>':'';
-        h+='<div class="remark-card" data-id="'+r.id+'" style="animation-delay:'+((remarks.length-1-i)*40)+'ms"><img class="thumb" src="'+(photos[0]||'')+'" alt="Фото" loading="lazy"><div class="info"><div class="num">Замечание #'+n+'</div><div class="desc">'+esc(r.description)+'</div><div class="loc"><span class="material-icons-round">place</span>'+esc(r.location)+'</div>'+badge+'</div></div>';}
-        listContent.innerHTML=h;var cards=listContent.querySelectorAll('.remark-card');for(var j=0;j<cards.length;j++){(function(c){c.addEventListener('click',function(){openDetail(c.dataset.id);});})(cards[j]);}}
+        function renderList(){
+            if(remarks.length>0){listTitle.innerHTML='Приёмка объекта <span class="counter-badge">'+remarks.length+'</span>';}else{listTitle.textContent='Приёмка объекта';}
+            if(remarks.length===0){listContent.innerHTML='<div class="empty-state"><span class="material-icons-round">assignment_late</span><p>Замечаний пока нет<br>Нажмите <strong>+</strong> для добавления</p></div>';return;}
+            var h='';
+            for(var i=remarks.length-1;i>=0;i--){
+                var r=remarks[i],n=i+1,photos=r.photos||[];
+                var badge=photos.length>1?'<div class="photo-count-badge">'+photos.length+' фото</div>':'';
+                h+='<div class="remark-card" data-id="'+r.id+'" style="animation-delay:'+((remarks.length-1-i)*40)+'ms"><img class="thumb" src="'+(photos[0]||'')+'" alt="Фото" loading="lazy"><div class="info"><div class="num">Замечание #'+n+'</div><div class="desc">'+esc(r.description)+'</div><div class="loc"><span class="material-icons-round">place</span>'+esc(r.location)+'</div>'+badge+'</div></div>';
+            }
+            listContent.innerHTML=h;
+            var cards=listContent.querySelectorAll('.remark-card');
+            for(var j=0;j<cards.length;j++){(function(c){c.addEventListener('click',function(){openDetail(c.dataset.id);});})(cards[j]);}
+        }
         
-        function openDetail(id){var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;var photos=r.photos||[];
-        detailTitleEl.textContent='Замечание #'+getDisplayNum(id);
-        var ph='';if(photos.length>0){ph='<div class="detail-photos">';for(var p=0;p<photos.length;p++){ph+='<img src="'+photos[p]+'" alt="Фото '+(p+1)+'">';}ph+='</div>';}
-        detailContent.innerHTML=ph
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">report_problem</span>Описание нарушения</div><div class="value">'+esc(r.description)+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">place</span>Место обнаружения</div><div class="value">'+esc(r.location)+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">gavel</span>Нормативный документ</div><div class="value">'+(esc(r.normative)||'—')+'</div></div>'
-            +'<div class="detail-field"><div class="label"><span class="material-icons-round">calendar_today</span>Дата фиксации</div><div class="value">'+formatDate(r.createdAt)+'</div></div>'
-            +'<div class="detail-actions"><button class="btn-edit" id="btn-edit-r"><span class="material-icons-round" style="font-size:18px">edit</span>Редактировать</button><button class="btn-delete" id="btn-del-r"><span class="material-icons-round" style="font-size:18px">delete</span>Удалить</button></div>';
-        $('btn-edit-r').addEventListener('click',function(){openEditForm(id);});
-        $('btn-del-r').addEventListener('click',function(){deleteTargetId=id;deleteModal.classList.add('show');});
-        showScreen('detail');}
+        function openDetail(id){
+            var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}
+            if(!r)return;
+            var photos=r.photos||[];
+            detailTitleEl.textContent='Замечание #'+getDisplayNum(id);
+            var ph='';
+            if(photos.length>0){ph='<div class="detail-photos">';for(var p=0;p<photos.length;p++){ph+='<img src="'+photos[p]+'" alt="Фото '+(p+1)+'">';}ph+='</div>';}
+            detailContent.innerHTML=ph
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">report_problem</span>Описание нарушения</div><div class="value">'+esc(r.description)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">place</span>Место обнаружения</div><div class="value">'+esc(r.location)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">gavel</span>Нормативный документ</div><div class="value">'+(esc(r.normative)||'—')+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">calendar_today</span>Дата фиксации</div><div class="value">'+formatDate(r.createdAt)+'</div></div>'
+                +'<div class="detail-actions"><button class="btn-edit" id="btn-edit-r"><span class="material-icons-round" style="font-size:18px">edit</span>Редактировать</button><button class="btn-delete" id="btn-del-r"><span class="material-icons-round" style="font-size:18px">delete</span>Удалить</button></div>';
+            $('btn-edit-r').addEventListener('click',function(){openEditForm(id);});
+            $('btn-del-r').addEventListener('click',function(){deleteTargetId=id;deleteModal.classList.add('show');});
+            showScreen('detail');
+        }
         
-        function openAddForm(){editingId=null;currentPhotos=[];formTitle.textContent='Новое замечание';
-            btnSave.textContent='Сохранить';resetForm();inputLoc.value=lastLocation;renderPhotosList();showScreen('form');}
+        function openAddForm(){
+            editingId=null;currentPhotos=[];formTitle.textContent='Новое замечание';
+            btnSave.textContent='Сохранить';resetForm();inputLoc.value=lastLocation;renderPhotosList();showScreen('form');
+        }
             
-        function openEditForm(id){var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}if(!r)return;editingId=id;currentPhotos=(r.photos||[]).slice();
+        function openEditForm(id){
+            var r=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}
+            if(!r)return;
+            editingId=id;currentPhotos=(r.photos||[]).slice();
             formTitle.textContent='Редактирование';btnSave.textContent='Обновить';
-            inputDesc.value=r.description;inputLoc.value=r.location;inputNorm.value=r.normative;renderPhotosList();showScreen('form');}
+            inputDesc.value=r.description;inputLoc.value=r.location;inputNorm.value=r.normative;renderPhotosList();showScreen('form');
+        }
             
         function resetForm(){inputDesc.value='';inputLoc.value='';inputNorm.value='';currentPhotos=[];renderPhotosList();}
         
-        function renderPhotosList(){if(currentPhotos.length===0){photosList.innerHTML='';photoCountLabel.textContent='';photoAddBtn.style.display='';return;}
+        function renderPhotosList(){
+            if(currentPhotos.length===0){photosList.innerHTML='';photoCountLabel.textContent='';photoAddBtn.style.display='';return;}
             photoAddBtn.style.display='none';photoCountLabel.textContent=currentPhotos.length+' фото';
-            var h='';for(var i=0;i<currentPhotos.length;i++){
-                h+='<div class="photo-thumb-wrap"><img src="'+currentPhotos[i]+'" alt="Фото '+(i+1)+'"><button type="button" class="photo-thumb-del" data-idx="'+i+'"><span class="material-icons-round">close</span></button></div>';}
+            var h='';
+            for(var i=0;i<currentPhotos.length;i++){
+                h+='<div class="photo-thumb-wrap"><img src="'+currentPhotos[i]+'" alt="Фото '+(i+1)+'"><button type="button" class="photo-thumb-del" data-idx="'+i+'"><span class="material-icons-round">close</span></button></div>';
+            }
             photosList.innerHTML=h;
             var delBtns=photosList.querySelectorAll('.photo-thumb-del');
-            for(var j=0;j<delBtns.length;j++){(function(btn){btn.addEventListener('click',function(e){e.stopPropagation();currentPhotos.splice(+btn.dataset.idx,1);renderPhotosList();});})(delBtns[j]);}}
+            for(var j=0;j<delBtns.length;j++){
+                (function(btn){
+                    btn.addEventListener('click',function(e){e.stopPropagation();currentPhotos.splice(+btn.dataset.idx,1);renderPhotosList();});
+                })(delBtns[j]);
+            }
+        }
             
         $('photo-add-btn').addEventListener('click',function(){inputPhoto.click();});
-        inputPhoto.addEventListener('change',function(){if(!inputPhoto.files[0)return;var files=inputPhoto.files,pending=[];for(var i=0;i<files.length;i++)pending.push(files[i]);
-            if(!pending.length)return;var done=0;
-            for(var j=0;j<pending.length;j++){(function(file){compressImage(file,function(b){if(b)currentPhotos.push(b);done++;if(done===pending.length){renderPhotosList();showToast('Добавлено: '+pending.length+' фото');}});})(pending[j]);}
-            inputPhoto.value='';});
+        
+        inputPhoto.addEventListener('change',function(){
+            if(!inputPhoto.files[0])return;
+            var files=inputPhoto.files,pending=[];
+            for(var i=0;i<files.length;i++)pending.push(files[i]);
+            if(!pending.length)return;
+            var done=0;
+            for(var j=0;j<pending.length;j++){
+                (function(file){
+                    compressImage(file,function(b){
+                        if(b)currentPhotos.push(b);
+                        done++;
+                        if(done===pending.length){renderPhotosList();showToast('Добавлено: '+pending.length+' фото');}
+                    });
+                })(pending[j]);
+            }
+            inputPhoto.value='';
+        });
             
-        function saveRemark(){var d=inputDesc.value.trim(),l=inputLoc.value.trim(),n=inputNorm.value.trim();
+        function saveRemark(){
+            var d=inputDesc.value.trim(),l=inputLoc.value.trim(),n=inputNorm.value.trim();
             if(currentPhotos.length===0){showToast('Добавьте хотя бы одно фото');return;}
             if(!d){showToast('Укажите описание нарушения');inputDesc.focus();return;}
             if(!l){showToast('Укажите место обнаружения');inputLoc.focus();return;}
             lastLocation=l;saveLastLoc();
-            if(editingId!==null){var it=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===editingId){it=remarks[i];break;}}
-            if(it){it.photos=currentPhotos.slice();it.description=d;it.location=l;it.normative=n;if(it.photo)delete it.photo;}
-            dbPut(it).then(function(){showToast('Замечание обновлено');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
-            }else{var ni={id:genId(),photos:currentPhotos.slice(),description:d,location:l,normative:n,createdAt:new Date().toISOString()};
-            remarks.push(ni);
-            // ИСПРАВЛЕНО: добавлена закрывающая кавычка 'list'
-            dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});}}
             
-        function deleteRemark(id){var f=[];for(var i=0;i<remarks.length;i++){if(remarks[i].id!==id)f.push(remarks[i]);}remarks=f;
-            dbDelete(id).then(function(){showToast('Замечание удалено');showScreen('list');}).catch(function(){showToast('Ошибка удаления');});}
+            if(editingId!==null){
+                var it=null;for(var i=0;i<remarks.length;i++){if(remarks[i].id===editingId){it=remarks[i];break;}}
+                if(it){it.photos=currentPhotos.slice();it.description=d;it.location=l;it.normative=n;if(it.photo)delete it.photo;}
+                dbPut(it).then(function(){showToast('Замечание обновлено');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
+            } else {
+                var ni={id:genId(),photos:currentPhotos.slice(),description:d,location:l,normative:n,createdAt:new Date().toISOString()};
+                remarks.push(ni);
+                dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});
+            }
+        }
+            
+        function deleteRemark(id){
+            var f=[];for(var i=0;i<remarks.length;i++){if(remarks[i].id!==id)f.push(remarks[i]);}remarks=f;
+            dbDelete(id).then(function(){showToast('Замечание удалено');showScreen('list');}).catch(function(){showToast('Ошибка удаления');});
+        }
             
         function clearAllRemarks(){dbClear().then(function(){remarks=[];showToast('Все замечания удалены');showScreen('list');}).catch(function(){showToast('Ошибка очистки');});}
         
-        function exportData(){if(remarks.length===0){showToast('Нет замечаний');return;}
+        function exportData(){
+            if(remarks.length===0){showToast('Нет замечаний');return;}
             var ds=new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});
             var json=JSON.stringify(remarks,null,2);
             var blob=new Blob([json],{type:'application/json;charset=utf-8'});
             var url=URL.createObjectURL(blob);
             var a=document.createElement('a');a.href=url;a.download='priemka_'+ds.replace(/\./g,'-')+'.json';
             document.body.appendChild(a);a.click();document.body.removeChild(a);
-            setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Данные экспортированы ('+remarks.length+')');}
+            setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Данные экспортированы ('+remarks.length+')');
+        }
             
-        function importData(file){var reader=new FileReader();
-            reader.onload=function(e){try{var data=JSON.parse(e.target.result);if(!Array.isArray(data)){showToast('Неверный формат файла (нужен .json)');return;}
-                var count=0;for(var i=0;i<data.length;i++){var item=data[i];if(!item||!item.id)continue;
-                    if(item.photo&&!item.photos){item.photos=[item.photo];delete item.photo;}
-                    if(!item.photos||!item.description)continue;
-                    var found=false;for(var j=0;j<remarks.length;j++){if(remarks[j].id===item.id){found=true;break;}}
-                    if(!found){remarks.push(item);count++;}}
-                if(count===0){showToast('Все замечания уже есть (нет дубликатов)');return;}
-                dbPutMany(remarks).then(function(){showToast('Импортировано: '+count+' замечаний');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
-            }catch(err){showToast('Ошибка чтения файла');}}
-            reader.readAsText(file);}
+        function importData(file){
+            var reader=new FileReader();
+            reader.onload=function(e){
+                try{
+                    var data=JSON.parse(e.target.result);
+                    if(!Array.isArray(data)){showToast('Неверный формат файла (нужен .json)');return;}
+                    var count=0;
+                    for(var i=0;i<data.length;i++){
+                        var item=data[i];if(!item||!item.id)continue;
+                        if(item.photo&&!item.photos){item.photos=[item.photo];delete item.photo;}
+                        if(!item.photos||!item.description)continue;
+                        var found=false;for(var j=0;j<remarks.length;j++){if(remarks[j].id===item.id){found=true;break;}}
+                        if(!found){remarks.push(item);count++;}
+                    }
+                    if(count===0){showToast('Все замечания уже есть (нет дубликатов)');return;}
+                    dbPutMany(remarks).then(function(){showToast('Импортировано: '+count+' замечаний');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
+                }catch(err){showToast('Ошибка чтения файла');}
+            };
+            reader.readAsText(file);
+        }
             
-        function exportToHtml(){if(remarks.length===0){showToast('Нет замечаний');return;}
+        function exportToHtml(){
+            if(remarks.length===0){showToast('Нет замечаний');return;}
             var ds=new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}),t=remarks.length,tr='';
-            for(var i=0;i<remarks.length;i++){var r=remarks[i],photos=r.photos||[];
-                // ИСПРАВЛЕНО: корректно расставлены скобки в тернарном операторе
+            for(var i=0;i<remarks.length;i++){
+                var r=remarks[i],photos=r.photos||[];
                 var ph=photos.length>0
                     ? ('<img src="'+photos[0]+'" style="max-width:200px;width:100%;border:1px solid #aaa;display:block;margin:0 auto;"/>' + (photos.length>1?'<div style="font-size:8pt;text-align:center;color:#888;margin-top:2px;">ещё '+(photos.length-1)+'</div>':''))
                     : '—';
@@ -289,7 +398,8 @@
                     +'<td style="width:30%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:10pt;">'+esc(r.description)+'</td>'
                     +'<td style="width:15%;vertical-align:middle;border:1px solid #000;padding:4px;">'+esc(r.location)+'</td>'
                     +'<td style="width:20%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+(esc(r.normative)||'—')+'</td>'
-                    +'<td style="width:8%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+formatDate(r.createdAt)+'</td></tr>';}
+                    +'<td style="width:8%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+formatDate(r.createdAt)+'</td></tr>';
+            }
             var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Акт замечаний</title>'
                 +'<style>@page{size:landscape;margin:10mm;}@media print{.no-print{display:none!important;}}'
                 +'body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#000;margin:10mm;}'
@@ -313,34 +423,55 @@
             var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;
             a.download='Замечания_'+ds.replace(/\./g,'-')+'.html';
             document.body.appendChild(a);a.click();document.body.removeChild(a);
-            setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Файл выгружен');}
-            
+            setTimeout(function(){URL.revokeObjectURL(url);},1000);showToast('Файл выгружен');
+        }
+        
         fabBtn.addEventListener('click',openAddForm);
         $('btn-export').addEventListener('click',exportToHtml);
         $('btn-form-back').addEventListener('click',function(){showScreen('list');});
         $('btn-detail-back').addEventListener('click',function(){showScreen('list');});
         remarkForm.addEventListener('submit',function(e){e.preventDefault();saveRemark();});
+        
         $('btn-modal-cancel').addEventListener('click',function(){deleteModal.classList.remove('show');deleteTargetId=null;});
         $('btn-modal-confirm').addEventListener('click',function(){if(deleteTargetId!==null)deleteRemark(deleteTargetId);deleteTargetId=null;deleteModal.classList.remove('show');});
         deleteModal.addEventListener('click',function(e){if(e.target===deleteModal){deleteModal.classList.remove('show');deleteTargetId=null;}});
+        
         $('btn-menu').addEventListener('click',function(){bottomSheet.classList.add('show');});
         bottomSheet.addEventListener('click',function(e){if(e.target===bottomSheet)bottomSheet.classList.remove('show');});
+        
         $('menu-export-data').addEventListener('click',function(){bottomSheet.classList.remove('show');exportData();});
         $('menu-import-data').addEventListener('click',function(){bottomSheet.classList.remove('show');inputImport.click();});
-        $('menu-clear-all').addEventListener('click',function(){bottomSheet.classList.remove('show');
+        $('menu-clear-all').addEventListener('click',function(){
+            bottomSheet.classList.remove('show');
             if(remarks.length===0){showToast('Замечаний нет');return;}
-            $('clear-count').textContent=remarks.length;clearModal.classList.add('show');});
+            $('clear-count').textContent=remarks.length;clearModal.classList.add('show');
+        });
+        
         $('btn-clear-cancel').addEventListener('click',function(){clearModal.classList.remove('show');});
         $('btn-clear-confirm').addEventListener('click',function(){clearModal.classList.remove('show');clearAllRemarks();});
         clearModal.addEventListener('click',function(e){if(e.target===clearModal)clearModal.classList.remove('show');});
         inputImport.addEventListener('change',function(){if(!inputImport.files[0])return;importData(inputImport.files[0]);inputImport.value='';});
         
-        /* === Инициализация с аварийным таймаутом === */
-        function hideSpinner(){var ls=$('loading-screen');if(ls){ls.classList.add('hide');setTimeout(function(){if(ls.parentNode)ls.remove();},300);}}
-        var fallbackTimer=setTimeout(hideSpinner,2500);
+        /* === Инициализация === */
+        function hideSpinner(){
+            var ls=$('loading-screen');
+            if(ls){ls.classList.add('hide');setTimeout(function(){if(ls.parentNode)ls.remove();},300);}
+        }
         
-        openDB().then(function(d){db=d;return dbGetAll();}).then(function(data){remarks=migratePhotos(data);return migrateOld();}).then(function(){return dbGetAll();}).then(function(data){remarks=migratePhotos(data);loadLastLoc();renderList();clearTimeout(fallbackTimer);hideSpinner();}).catch(function(e){
-            console.error('Init:',e);loadLastLoc();try{renderList();}catch(ex){}
+        var fallbackTimer=setTimeout(hideSpinner, 2500);
+        
+        openDB().then(function(d){
+            db=d;return dbGetAll();
+        }).then(function(data){
+            remarks=migratePhotos(data);return migrateOld();
+        }).then(function(){
+            return dbGetAll();
+        }).then(function(data){
+            remarks=migratePhotos(data);loadLastLoc();renderList();
+            clearTimeout(fallbackTimer);hideSpinner();
+        }).catch(function(e){
+            console.error('Init error:', e);
+            loadLastLoc();try{renderList();}catch(ex){}
             clearTimeout(fallbackTimer);hideSpinner();
         });
     </script>

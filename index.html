@@ -2,197 +2,574 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Журнал замечаний</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2C3E50">
+    <meta name="apple-mobile-web-app-title" content="Приёмка">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <title>Приёмка объекта</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; color: #333; }
-        .header { background: #2c3e50; color: white; padding: 15px; text-align: center; font-size: 18px; }
-        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn { display: inline-block; padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; margin-right: 5px; margin-bottom: 5px; font-size: 14px; }
-        .btn-danger { background: #e74c3c; }
-        .btn-success { background: #27ae60; }
-        .btn-block { display: block; width: 100%; text-align: center; box-sizing: border-box; }
-        textarea { width: 100%; box-sizing: border-box; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; resize: vertical; }
-        .photos-preview { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-        .photos-preview img { width: 80px; height: 80px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd; }
-        .hidden { display: none !important; }
-        #spinner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; font-size: 20px; color: #2c3e50; }
-        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 5px; opacity: 0; transition: opacity 0.3s; z-index: 10000; }
-        .meta { font-size: 12px; color: #888; margin-bottom: 8px; }
+        :root {
+            --bg: #F5F0EB; --card: #FFFFFF; --accent: #D35400;
+            --accent-hover: #B8460A; --accent-light: #FDEBD0;
+            --text: #2C3E50; --text-muted: #95A5A6;
+            --border: #E8E0D8; --danger: #E74C3C;
+            --danger-light: #FDEDEC; --header-bg: #2C3E50;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        body { font-family:'Nunito',sans-serif; background:var(--bg); color:var(--text); overflow:hidden; height:100dvh; width:100vw; }
+        body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(0,0,0,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.018) 1px,transparent 1px); background-size:36px 36px; pointer-events:none; z-index:0; }
+
+        .loading-screen { position:fixed; inset:0; z-index:999; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; transition:opacity .3s; }
+        .loading-screen.hide { opacity:0; pointer-events:none; }
+        .loading-spinner { width:40px; height:40px; border:4px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .loading-text { font-size:14px; color:var(--text-muted); font-weight:600; }
+
+        .screen { position:fixed; inset:0; display:flex; flex-direction:column; opacity:0; pointer-events:none; transform:translateY(14px); transition:opacity .26s ease,transform .26s ease; z-index:1; }
+        .screen.active { opacity:1; pointer-events:auto; transform:translateY(0); z-index:2; }
+        .app-header { background:var(--header-bg); color:white; padding:0 16px; height:56px; display:flex; align-items:center; gap:10px; flex-shrink:0; z-index:10; }
+        .app-header h1 { font-size:17px; font-weight:800; flex:1; }
+        .header-btn { width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:50%; border:none; background:rgba(255,255,255,.1); color:white; cursor:pointer; transition:background .2s; }
+        .header-btn:active { background:rgba(255,255,255,.25); }
+        .header-icon { font-size:20px !important; }
+        .status-bar { height:4px; background:var(--accent); flex-shrink:0; }
+        .counter-badge { background:var(--accent); color:white; font-size:11px; font-weight:800; padding:1px 8px; border-radius:20px; margin-left:6px; vertical-align:middle; }
+        .screen-content { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px; padding-bottom:88px; }
+        .screen-content::-webkit-scrollbar { width:3px; }
+        .screen-content::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+        @keyframes cardSlideIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .remark-card { background:var(--card); border-radius:12px; padding:12px; margin-bottom:10px; display:flex; gap:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); cursor:pointer; transition:transform .15s,box-shadow .15s; border:1px solid var(--border); animation:cardSlideIn .3s ease both; }
+        .remark-card:active { transform:scale(.98); box-shadow:0 0 2px rgba(0,0,0,.08); }
+        .remark-card .thumb { width:84px; height:84px; border-radius:8px; object-fit:cover; flex-shrink:0; background:var(--bg); }
+        .remark-card .info { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+        .remark-card .num { font-size:11px; font-weight:700; color:var(--accent); margin-bottom:2px; }
+        .remark-card .desc { font-size:14px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .remark-card .loc { font-size:12px; color:var(--text-muted); margin-top:4px; display:flex; align-items:center; gap:3px; }
+        .remark-card .loc .material-icons-round { font-size:14px; }
+        .fab { position:fixed; bottom:24px; right:24px; width:56px; height:56px; border-radius:16px; background:var(--accent); color:white; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 18px rgba(211,84,0,.45); z-index:20; transition:transform .2s,background .2s; }
+        .fab:active { transform:scale(.9); background:var(--accent-hover); }
+        .fab .material-icons-round { font-size:28px; }
+        .form-section { margin-bottom:18px; }
+        .form-label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--text); margin-bottom:7px; text-transform:uppercase; letter-spacing:.5px; }
+        .form-label .material-icons-round { font-size:17px; color:var(--accent); }
+        .form-input { width:100%; padding:11px 13px; border:2px solid var(--border); border-radius:10px; font-size:15px; font-family:inherit; color:var(--text); background:var(--card); transition:border-color .2s,box-shadow .2s; outline:none; }
+        .form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(211,84,0,.1); }
+        .form-input::placeholder { color:var(--text-muted); }
+        textarea.form-input { resize:vertical; min-height:76px; }
+        .photo-block { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; position:relative; overflow:hidden; }
+        .photo-block:active { border-color:var(--accent); background:var(--accent-light); }
+        .photo-block.has-photo { padding:0; border-style:solid; border-color:var(--border); }
+        .photo-block.has-photo:active { border-color:var(--accent); }
+        .photo-block img { width:100%; height:300px; object-fit:cover; display:block; border-radius:10px; }
+        .photo-overlay { position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .2s; border-radius:10px; }
+        .photo-block.has-photo:active .photo-overlay { opacity:1; }
+        .photo-overlay span { color:white; font-weight:700; font-size:14px; }
+        .photo-placeholder { display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--text-muted); }
+        .photo-placeholder .material-icons-round { font-size:40px; color:var(--accent); }
+        .photo-placeholder span { font-size:14px; font-weight:600; }
+        .photo-alt { margin-top:6px; font-size:12px; color:var(--text-muted); cursor:pointer; text-align:center; }
+        .photo-alt:active { color:var(--accent); }
+        .save-btn { width:100%; padding:14px; border-radius:12px; border:none; background:var(--accent); color:white; font-size:16px; font-weight:800; font-family:inherit; cursor:pointer; transition:background .2s,transform .15s; margin-top:4px; }
+        .save-btn:active { transform:scale(.98); background:var(--accent-hover); }
+        .detail-photo { width:100%; border-radius:12px; margin-bottom:14px; display:block; box-shadow:0 2px 8px rgba(0,0,0,.08); max-height:70vh; object-fit:contain; background:var(--bg); }
+        .detail-field { background:var(--card); border-radius:10px; padding:13px 14px; margin-bottom:8px; border:1px solid var(--border); }
+        .detail-field .label { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; display:flex; align-items:center; gap:4px; }
+        .detail-field .label .material-icons-round { font-size:14px; }
+        .detail-field .value { font-size:15px; font-weight:600; color:var(--text); line-height:1.45; }
+        .detail-actions { display:flex; gap:10px; margin-top:18px; }
+        .detail-actions button { flex:1; padding:12px; border-radius:10px; border:none; font-size:14px; font-weight:700; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:transform .15s; }
+        .detail-actions button:active { transform:scale(.97); }
+        .btn-edit { background:var(--accent-light); color:var(--accent); }
+        .btn-delete { background:var(--danger-light); color:var(--danger); }
+        .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; text-align:center; }
+        .empty-state .material-icons-round { font-size:60px; color:var(--border); margin-bottom:14px; }
+        .empty-state p { font-size:15px; color:var(--text-muted); font-weight:600; line-height:1.5; }
+        .toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(100px); background:var(--header-bg); color:white; padding:11px 22px; border-radius:10px; font-size:13px; font-weight:600; z-index:100; transition:transform .3s cubic-bezier(.4,0,.2,1); white-space:nowrap; box-shadow:0 4px 18px rgba(0,0,0,.22); }
+        .toast.show { transform:translateX(-50%) translateY(0); }
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity .2s; }
+        .modal-overlay.show { opacity:1; pointer-events:auto; }
+        .modal-box { background:var(--card); border-radius:16px; padding:24px; max-width:310px; width:100%; text-align:center; }
+        .modal-box h3 { font-size:17px; font-weight:800; margin-bottom:6px; }
+        .modal-box p { font-size:13px; color:var(--text-muted); margin-bottom:18px; }
+        .modal-btns { display:flex; gap:10px; }
+        .modal-btns button { flex:1; padding:10px; border-radius:10px; border:none; font-size:14px; font-weight:700; font-family:inherit; cursor:pointer; }
+        .modal-cancel { background:var(--bg); color:var(--text); }
+        .modal-confirm { background:var(--danger); color:white; }
+        @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:.01ms!important; animation-duration:.01ms!important; } }
     </style>
 </head>
 <body>
 
-    <div id="spinner">Загрузка данных...</div>
-    <div id="toast"></div>
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Загрузка данных...</div>
+    </div>
 
-    <div class="header">Журнал замечаний</div>
-    
-    <div class="container">
-        <!-- ЭКРАН СПИСКА -->
-        <div id="screen-list">
-            <button class="btn btn-success btn-block" onclick="openForm()">+ Добавить замечание</button>
-            <button class="btn btn-block" style="background:#f39c12;" onclick="exportToHtml()">Экспорт в HTML</button>
-            <div id="list-container"></div>
-        </div>
+    <div id="screen-list" class="screen active">
+        <div class="status-bar"></div>
+        <header class="app-header">
+            <span class="material-icons-round header-icon" style="color:var(--accent)">construction</span>
+            <h1 id="list-title">Приёмка объекта</h1>
+            <button class="header-btn" id="btn-export" aria-label="Выгрузить"><span class="material-icons-round header-icon">download</span></button>
+        </header>
+        <div class="screen-content" id="list-content"></div>
+        <button class="fab" id="btn-add" aria-label="Добавить замечание"><span class="material-icons-round">add</span></button>
+    </div>
 
-        <!-- ЭКРАН ФОРМЫ -->
-        <div id="screen-form" class="hidden">
-            <div class="card">
-                <textarea id="remarkText" rows="4" placeholder="Описание замечания..."></textarea>
-                
-                <label style="display:block; margin-bottom:10px; cursor:pointer;">
-                    <span class="btn" style="background:#95a5a6;">Прикрепить фото (несколько)</span>
-                    <input type="file" id="photoInput" accept="image/*" multiple style="display: none;">
-                </label>
-                
-                <div id="photoPreviews" class="photos-preview"></div>
-
-                <div style="margin-top: 15px;">
-                    <button class="btn btn-success" onclick="saveRemark()">Сохранить</button>
-                    <button class="btn btn-danger" onclick="showScreen('list')">Отмена</button>
+    <div id="screen-form" class="screen">
+        <div class="status-bar"></div>
+        <header class="app-header">
+            <button class="header-btn" id="btn-form-back" aria-label="Назад"><span class="material-icons-round header-icon">arrow_back</span></button>
+            <h1 id="form-title">Новое замечание</h1>
+        </header>
+        <div class="screen-content">
+            <form id="remark-form" autocomplete="off">
+                <div class="form-section">
+                    <label class="form-label"><span class="material-icons-round">photo_camera</span> Фотография</label>
+                    <div class="photo-block" id="photo-block">
+                        <div class="photo-placeholder" id="photo-placeholder"><span class="material-icons-round">add_a_photo</span><span>Снять или выбрать фото</span></div>
+                        <div class="photo-overlay"><span>Переснять</span></div>
+                    </div>
+                    <div class="photo-alt" id="photo-gallery-link">или выбрать из галереи</div>
+                    <input type="file" id="input-camera" accept="image/*" capture="environment" hidden>
+                    <input type="file" id="input-gallery" accept="image/*" hidden>
                 </div>
+                <div class="form-section">
+                    <label class="form-label" for="input-desc"><span class="material-icons-round">report_problem</span> Описание нарушения</label>
+                    <textarea class="form-input" id="input-desc" placeholder="Опишите выявленное нарушение..." rows="3"></textarea>
+                </div>
+                <div class="form-section">
+                    <label class="form-label" for="input-loc"><span class="material-icons-round">place</span> Место обнаружения</label>
+                    <input class="form-input" id="input-loc" type="text" placeholder="Этаж, помещение, зона...">
+                </div>
+                <div class="form-section">
+                    <label class="form-label" for="input-norm"><span class="material-icons-round">gavel</span> Нормативный документ</label>
+                    <input class="form-input" id="input-norm" type="text" placeholder="СП, ГОСТ, СНиП, пункт...">
+                </div>
+                <button type="submit" class="save-btn" id="btn-save">Сохранить</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="screen-detail" class="screen">
+        <div class="status-bar"></div>
+        <header class="app-header">
+            <button class="header-btn" id="btn-detail-back" aria-label="Назад"><span class="material-icons-round header-icon">arrow_back</span></button>
+            <h1 id="detail-title">Замечание</h1>
+        </header>
+        <div class="screen-content" id="detail-content"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal-box">
+            <h3>Удалить замечание?</h3>
+            <p>Действие нельзя будет отменить</p>
+            <div class="modal-btns">
+                <button class="modal-cancel" id="btn-modal-cancel">Отмена</button>
+                <button class="modal-confirm" id="btn-modal-confirm">Удалить</button>
             </div>
         </div>
     </div>
 
-<script>
-var DB_NAME='RemarksDB', STORE='remarks', db, remarks=[], currentEditId=null, isMemoryMode=false;
-
-function openDB(){return new Promise(function(res,rej){var r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=function(e){e.target.result.createObjectStore(STORE,{keyPath:'id'});};r.onsuccess=function(e){db=e.target.result;res();};r.onerror=function(){rej(r.error);};});}
-function dbGetAll(){return new Promise(function(res,rej){var tx=db.transaction(STORE,'readonly'),r=tx.objectStore(STORE).getAll();tx.oncomplete=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
-function dbPut(item){return new Promise(function(res,rej){if(isMemoryMode){res();return;}var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).put(item);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
-
-function dbDelete(id){return new Promise(function(res,rej){if(isMemoryMode){res();return;}var tx=db.transaction(STORE,'readwrite'),r=tx.objectStore(STORE).delete(id);tx.oncomplete=function(){res();};r.onerror=function(){rej(r.error);};});}
-
-function showScreen(name){
-    document.getElementById('screen-list').classList.toggle('hidden', name!=='list');
-    document.getElementById('screen-form').classList.toggle('hidden', name!=='form');
-    if(name==='list') renderList();
-}
-
-function renderList(){
-    var c=document.getElementById('list-container'); c.innerHTML='';
-    if(remarks.length===0){c.innerHTML='<p style="text-align:center;color:#888;margin-top:20px;">Замечаний нет</p>';return;}
-    remarks.slice().reverse().forEach(function(r){
-        var photos=(r.photos||[]);
-        var thumbHtml='';
-        if(photos.length>0){
-            thumbHtml='<div class="photos-preview">';
-            for(var i=0; i<photos.length; i++){thumbHtml+='<img src="'+photos[i]+'" alt="photo">';}
-            thumbHtml+='</div>';
+    <script>
+        /* Service Worker — регистрируем, но HTML всегда из сети */
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(function(){});
         }
-        c.innerHTML+='<div class="card">'+
-            '<div class="meta">#'+r.id+' | '+r.date+'</div>'+
-            '<p style="margin:0 0 10px 0;">'+r.text+'</p>'+
-            thumbHtml+
-            '<button class="btn" onclick="openForm('+r.id+')">Редактировать</button>'+
-            '<button class="btn btn-danger" onclick="deleteRemark('+r.id+')">Удалить</button>'+
-            '</div>';
-    });
-}
 
-function openForm(id){
-    currentEditId=id||null;
-    document.getElementById('remarkText').value='';
-    document.getElementById('photoInput').value='';
-    document.getElementById('photoPreviews').innerHTML='';
-    
-    if(id){
-        var r=remarks.find(x=>x.id===id);
-        if(r){
-            document.getElementById('remarkText').value=r.text;
-            renderFormPreviews(r.photos||[]);
+        /* ============================
+           IndexedDB
+           ============================ */
+        var DB_NAME = 'PriemkaDB';
+        var DB_VER = 2;
+        var STORE = 'remarks';
+        var db = null;
+
+        function openDB() {
+            return new Promise(function(resolve, reject) {
+                var req = indexedDB.open(DB_NAME, DB_VER);
+                req.onupgradeneeded = function(e) {
+                    var d = e.target.result;
+                    if (!d.objectStoreNames.contains(STORE)) {
+                        d.createObjectStore(STORE, { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = function(e) { resolve(e.target.result); };
+                req.onerror = function() { reject(req.error); };
+            });
         }
-    }
-    showScreen('form');
-}
 
-function renderFormPreviews(photos){
-    var c=document.getElementById('photoPreviews'); c.innerHTML='';
-    photos.forEach(function(p){ c.innerHTML+='<img src="'+p+'" alt="photo">'; });
-}
+        function dbGetAll() {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(STORE, 'readonly');
+                var req = tx.objectStore(STORE).getAll();
+                req.onsuccess = function() { resolve(req.result || []); };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
 
-function readFileAsDataURL(file){return new Promise(function(res,rej){var fr=new FileReader();fr.onload=function(e){res(e.target.result);};fr.onerror=function(){rej(fr.error);};fr.readAsDataURL(file);});}
+        function dbPut(item) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(STORE, 'readwrite');
+                var req = tx.objectStore(STORE).put(item);
+                tx.oncomplete = function() { resolve(); };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
 
-function saveRemark(){
-    var text=document.getElementById('remarkText').value.trim();
-    if(!text) return showToast('Введите описание замечания');
-    
-    var files=document.getElementById('photoInput').files;
-    var existingPhotos=currentEditId?(remarks.find(x=>x.id===currentEditId).photos||[]):[];
-    
-    if(files.length>0){
-        var promises=[];
-        for(var i=0;i<files.length;i++) promises.push(readFileAsDataURL(files[i]));
-        
-        Promise.all(promises).then(function(newPhotos){
-            finishSave(text, existingPhotos.concat(newPhotos));
-        }).catch(function(){showToast('Ошибка чтения файлов');});
-    } else {
-        finishSave(text, existingPhotos);
-    }
-}
+        function dbDelete(id) {
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(STORE, 'readwrite');
+                var req = tx.objectStore(STORE).delete(id);
+                tx.oncomplete = function() { resolve(); };
+                req.onerror = function() { reject(req.error); };
+            });
+        }
 
-function finishSave(text, photos){
-    if(currentEditId){
-        var r=remarks.find(x=>x.id===currentEditId);
-        r.text=text; r.photos=photos;
-        dbPut(r).then(function(){showToast('Замечание обновлено');showScreen('list');}).catch(function(){showToast('Ошибка сохранения');});
-    } else {
-        var ni={id:Date.now(), text:text, photos:photos, date:new Date().toLocaleString()};
-        remarks.push(ni);
-        dbPut(ni).then(function(){showToast('Замечание #'+remarks.length+' добавлено');showScreen('list');}).catch(function(){remarks.pop();showToast('Ошибка сохранения');});
-    }
-}
+        /* Миграция из старого localStorage */
+        function migrateOld() {
+            try {
+                var old = localStorage.getItem('obj_remarks');
+                if (!old) return Promise.resolve(0);
+                var data = JSON.parse(old);
+                if (!Array.isArray(data) || data.length === 0) {
+                    localStorage.removeItem('obj_remarks');
+                    return Promise.resolve(0);
+                }
+                /* Проверяем что в IndexedDB пусто — не перезаписывать новые данные старыми */
+                return dbGetAll().then(function(existing) {
+                    if (existing.length > 0) {
+                        /* IndexedDB уже имеет данные — не мигрируем, только чистим localStorage */
+                        localStorage.removeItem('obj_remarks');
+                        return 0;
+                    }
+                    var tasks = [];
+                    for (var i = 0; i < data.length; i++) tasks.push(dbPut(data[i]));
+                    return Promise.all(tasks).then(function() {
+                        localStorage.removeItem('obj_remarks');
+                        return data.length;
+                    });
+                });
+            } catch(e) {
+                try { localStorage.removeItem('obj_remarks'); } catch(x){}
+                return Promise.resolve(0);
+            }
+        }
 
-function deleteRemark(id){
-    if(!confirm('Удалить замечание?')) return;
-    remarks=remarks.filter(x=>x.id!==id);
-    dbDelete(id).then(function(){showToast('Удалено');renderList();}).catch(function(){showToast('Ошибка удаления');});
-}
+        /* ============================
+           Состояние
+           ============================ */
+        var remarks = [];
+        var editingId = null;
+        var currentPhoto = null;
+        var deleteTargetId = null;
+        var lastLocation = '';
 
-function exportToHtml(){
-    if(remarks.length===0) return showToast('Нет данных для экспорта');
-    var html='<html><head><meta charset="utf-8"><title>Замечания</title></head><body><h1>Журнал замечаний</h1>';
-    remarks.forEach(function(r){
-        var photos=r.photos||[];
-        var ph=photos.length>0?'<img src="'+photos[0]+'" style="max-width:200px;width:100%;border:1px solid #aaa;display:block;margin:0 auto;"/>'+(photos.length>1?'<div style="font-size:8pt;text-align:center;color:#888;margin-top:2px;">ещё '+(photos.length-1)+'</div>':'') :'—';
-        
-        html+='<div style="border:1px solid #ccc;margin:10px 0;padding:10px;">';
-        html+='<b>'+r.date+'</b><br><p>'+r.text+'</p>'+ph;
-        html+='</div>';
-    });
-    html+='</body></html>';
-    
-    var blob=new Blob([html],{type:'text/html'});
-    var a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='remarks.html';
-    a.click();
-    URL.revokeObjectURL(a.href);
-}
+        var $ = function(id) { return document.getElementById(id); };
+        var screenList=$('screen-list'), screenForm=$('screen-form'), screenDetail=$('screen-detail');
+        var listContent=$('list-content'), detailContent=$('detail-content');
+        var listTitle=$('list-title'), formTitle=$('form-title'), detailTitleEl=$('detail-title');
+        var remarkForm=$('remark-form'), photoBlock=$('photo-block'), photoPlaceholder=$('photo-placeholder');
+        var inputCamera=$('input-camera'), inputGallery=$('input-gallery');
+        var inputDesc=$('input-desc'), inputLoc=$('input-loc'), inputNorm=$('input-norm');
+        var btnSave=$('btn-save'), toastEl=$('toast'), deleteModal=$('delete-modal'), fabBtn=$('btn-add');
 
-function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.style.opacity=1;setTimeout(function(){t.style.opacity=0;},2500);}
+        function showToast(msg) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(function(){ toastEl.classList.remove('show'); }, 3000);
+        }
 
-// ЗАПУСК С ЗАЩИТОЙ ОТ ОШИБОК БЕЗОПАСНОСТИ
-openDB().then(function(){
-    return dbGetAll();
-}).then(function(data){
-    remarks=data;
-    showScreen('list');
-    document.getElementById('spinner').style.display='none';
-}).catch(function(e){
-    console.warn("IndexedDB недоступен. Запуск в демо-режиме (без сохранения). Причина: ", e);
-    
-    // Переключаем приложение в режим работы в оперативной памяти
-    isMemoryMode = true;
-    remarks = [];
-    showScreen('list');
-    document.getElementById('spinner').style.display='none';
-    showToast('БД заблокирована браузером! Работаем без сохранения.');
-});
-</script>
+        function formatDate(iso) {
+            return new Date(iso).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});
+        }
+
+        function esc(text) {
+            var d = document.createElement('div');
+            d.textContent = text || '';
+            return d.innerHTML;
+        }
+
+        /* Генерация уникального ID — без коллизий */
+        function genId() {
+            return Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 6);
+        }
+
+        function compressImage(file, callback) {
+            var reader = new FileReader();
+            reader.onerror = function(){ callback(null); };
+            reader.onload = function(e) {
+                var img = new Image();
+                img.onerror = function(){ callback(null); };
+                img.onload = function() {
+                    var MAX=1200, w=img.width, h=img.height;
+                    if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+                    var c=document.createElement('canvas'); c.width=w; c.height=h;
+                    c.getContext('2d').drawImage(img,0,0,w,h);
+                    callback(c.toDataURL('image/jpeg',0.85));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveLastLoc() { try{localStorage.setItem('obj_last_loc',lastLocation);}catch(e){} }
+        function loadLastLoc() { try{lastLocation=localStorage.getItem('obj_last_loc')||'';}catch(e){lastLocation='';} }
+
+        /* ============================
+           Навигация / Рендер
+           ============================ */
+        function showScreen(name) {
+            screenList.classList.remove('active');
+            screenForm.classList.remove('active');
+            screenDetail.classList.remove('active');
+            fabBtn.style.display = (name==='list') ? 'flex' : 'none';
+            if(name==='list'){screenList.classList.add('active');renderList();}
+            else if(name==='form'){screenForm.classList.add('active');}
+            else if(name==='detail'){screenDetail.classList.add('active');}
+        }
+
+        function getDisplayNum(id) {
+            for(var i=0;i<remarks.length;i++){if(remarks[i].id===id)return i+1;}
+            return '?';
+        }
+
+        function renderList() {
+            if(remarks.length>0){listTitle.innerHTML='Приёмка объекта <span class="counter-badge">'+remarks.length+'</span>';}
+            else{listTitle.textContent='Приёмка объекта';}
+            if(remarks.length===0){listContent.innerHTML='<div class="empty-state"><span class="material-icons-round">assignment_late</span><p>Замечаний пока нет<br>Нажмите <strong>+</strong> для добавления</p></div>';return;}
+            var html='';
+            for(var i=remarks.length-1;i>=0;i--){
+                var r=remarks[i], num=i+1;
+                html+='<div class="remark-card" data-id="'+r.id+'" style="animation-delay:'+((remarks.length-1-i)*40)+'ms">'
+                    +'<img class="thumb" src="'+r.photo+'" alt="Фото" loading="lazy">'
+                    +'<div class="info"><div class="num">Замечание #'+num+'</div>'
+                    +'<div class="desc">'+esc(r.description)+'</div>'
+                    +'<div class="loc"><span class="material-icons-round">place</span>'+esc(r.location)+'</div></div></div>';
+            }
+            listContent.innerHTML=html;
+            var cards=listContent.querySelectorAll('.remark-card');
+            for(var j=0;j<cards.length;j++){
+                (function(card){card.addEventListener('click',function(){openDetail(card.dataset.id);});})(cards[j]);
+            }
+        }
+
+        /* ============================
+           Формы
+           ============================ */
+        function openDetail(id) {
+            var r=null;
+            for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}
+            if(!r)return;
+            detailTitleEl.textContent='Замечание #'+getDisplayNum(id);
+            detailContent.innerHTML='<img class="detail-photo" src="'+r.photo+'" alt="Фото замечания">'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">report_problem</span>Описание нарушения</div><div class="value">'+esc(r.description)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">place</span>Место обнаружения</div><div class="value">'+esc(r.location)+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">gavel</span>Нормативный документ</div><div class="value">'+(esc(r.normative)||'—')+'</div></div>'
+                +'<div class="detail-field"><div class="label"><span class="material-icons-round">calendar_today</span>Дата фиксации</div><div class="value">'+formatDate(r.createdAt)+'</div></div>'
+                +'<div class="detail-actions"><button class="btn-edit" id="btn-edit-r"><span class="material-icons-round" style="font-size:18px">edit</span>Редактировать</button>'
+                +'<button class="btn-delete" id="btn-del-r"><span class="material-icons-round" style="font-size:18px">delete</span>Удалить</button></div>';
+            $('btn-edit-r').addEventListener('click',function(){openEditForm(id);});
+            $('btn-del-r').addEventListener('click',function(){deleteTargetId=id;deleteModal.classList.add('show');});
+            showScreen('detail');
+        }
+
+        function openAddForm() {
+            editingId=null; currentPhoto=null;
+            formTitle.textContent='Новое замечание'; btnSave.textContent='Сохранить';
+            resetForm(); inputLoc.value=lastLocation; showScreen('form');
+        }
+
+        function openEditForm(id) {
+            var r=null;
+            for(var i=0;i<remarks.length;i++){if(remarks[i].id===id){r=remarks[i];break;}}
+            if(!r)return;
+            editingId=id; currentPhoto=r.photo;
+            formTitle.textContent='Редактирование'; btnSave.textContent='Обновить';
+            inputDesc.value=r.description; inputLoc.value=r.location; inputNorm.value=r.normative;
+            photoBlock.classList.add('has-photo'); photoPlaceholder.style.display='none';
+            var img=photoBlock.querySelector('img');
+            if(!img){img=document.createElement('img');img.alt='Фото';photoBlock.insertBefore(img,photoBlock.querySelector('.photo-overlay'));}
+            img.src=r.photo; showScreen('form');
+        }
+
+        function resetForm() {
+            inputDesc.value=''; inputLoc.value=''; inputNorm.value='';
+            currentPhoto=null;
+            photoBlock.classList.remove('has-photo'); photoPlaceholder.style.display='';
+            var img=photoBlock.querySelector('img'); if(img)img.remove();
+        }
+
+        function setPhotoPreview(base64) {
+            currentPhoto=base64;
+            photoBlock.classList.add('has-photo'); photoPlaceholder.style.display='none';
+            var img=photoBlock.querySelector('img');
+            if(!img){img=document.createElement('img');img.alt='Фото';photoBlock.insertBefore(img,photoBlock.querySelector('.photo-overlay'));}
+            img.src=base64;
+        }
+
+        /* ============================
+           Сохранение / удаление
+           ============================ */
+        function saveRemark() {
+            var desc=inputDesc.value.trim(), loc=inputLoc.value.trim(), norm=inputNorm.value.trim();
+            if(!currentPhoto){showToast('Добавьте фотографию');return;}
+            if(!desc){showToast('Укажите описание нарушения');inputDesc.focus();return;}
+            if(!loc){showToast('Укажите место обнаружения');inputLoc.focus();return;}
+            lastLocation=loc; saveLastLoc();
+
+            if(editingId!==null) {
+                var item=null;
+                for(var i=0;i<remarks.length;i++){if(remarks[i].id===editingId){item=remarks[i];break;}}
+                if(item){item.photo=currentPhoto;item.description=desc;item.location=loc;item.normative=norm;}
+                dbPut(item).then(function(){
+                    showToast('Замечание обновлено'); showScreen('list');
+                }).catch(function(){showToast('Ошибка сохранения');});
+            } else {
+                var newItem={id:genId(),photo:currentPhoto,description:desc,location:loc,normative:norm,createdAt:new Date().toISOString()};
+                remarks.push(newItem);
+                dbPut(newItem).then(function(){
+                    showToast('Замечание #'+remarks.length+' добавлено'); showScreen('list');
+                }).catch(function(){
+                    /* Откат если БД не записала */
+                    remarks.pop(); showToast('Ошибка сохранения');
+                });
+            }
+        }
+
+        function deleteRemark(id) {
+            var filtered=[];
+            for(var i=0;i<remarks.length;i++){if(remarks[i].id!==id)filtered.push(remarks[i]);}
+            remarks=filtered;
+            dbDelete(id).then(function(){
+                showToast('Замечание удалено'); showScreen('list');
+            }).catch(function(){showToast('Ошибка удаления');});
+        }
+
+        /* ============================
+           Выгрузка HTML
+           ============================ */
+        function exportToHtml() {
+            if(remarks.length===0){showToast('Нет замечаний для выгрузки');return;}
+            var dateStr=new Date().toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});
+            var total=remarks.length;
+            var tableRows='',bigCards='';
+            for(var i=0;i<remarks.length;i++){
+                var r=remarks[i];
+                tableRows+='<tr>'
+                    +'<td style="width:5%;text-align:center;vertical-align:middle;font-weight:bold;border:1px solid #000;padding:4px;">'+(i+1)+'</td>'
+                    +'<td style="width:20%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;"><img src="'+r.photo+'" style="max-width:180px;width:100%;border:1px solid #aaa;display:block;margin:0 auto;"/></td>'
+                    +'<td style="width:33%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:10pt;">'+esc(r.description)+'</td>'
+                    +'<td style="width:15%;vertical-align:middle;border:1px solid #000;padding:4px;">'+esc(r.location)+'</td>'
+                    +'<td style="width:19%;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+(esc(r.normative)||'—')+'</td>'
+                    +'<td style="width:8%;text-align:center;vertical-align:middle;border:1px solid #000;padding:4px;font-size:9pt;">'+formatDate(r.createdAt)+'</td></tr>';
+                bigCards+='<div style="break-inside:avoid;margin-bottom:24px;border:1px solid #ccc;border-radius:6px;overflow:hidden;background:#fff;">'
+                    +'<div style="background:#2C3E50;color:#fff;padding:8px 14px;font-size:13pt;font-weight:bold;">Замечание №'+(i+1)+'</div>'
+                    +'<div style="padding:0;"><img src="'+r.photo+'" style="width:100%;display:block;"/></div>'
+                    +'<div style="padding:10px 14px;font-family:Times New Roman,serif;font-size:11pt;line-height:1.6;">'
+                    +'<b>Описание:</b> '+esc(r.description)+'<br/><b>Место:</b> '+esc(r.location)+'<br/>'
+                    +'<b>Норматив:</b> '+(esc(r.normative)||'—')+'<br/><b>Дата:</b> '+formatDate(r.createdAt)+'</div></div>';
+            }
+            var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Акт замечаний</title>'
+                +'<style>@page{size:landscape;margin:10mm;}@media print{.no-print{display:none!important;}}'
+                +'body{font-family:"Times New Roman",Times,serif;font-size:11pt;color:#000;margin:10mm;}'
+                +'h1{text-align:center;font-size:15pt;margin-bottom:2mm;}'
+                +'.sub{text-align:center;font-size:10pt;color:#444;margin-bottom:5mm;}'
+                +'table{border-collapse:collapse;width:100%;}'
+                +'th{background-color:#D35400;color:#fff;font-size:9pt;font-weight:bold;text-align:center;border:1px solid #000;padding:5px 4px;}'
+                +'.divider{border:none;border-top:3px double #333;margin:12mm 0 8mm 0;}'
+                +'.section-title{font-size:14pt;font-weight:bold;text-align:center;margin-bottom:5mm;color:#2C3E50;}'
+                +'.sig{margin-top:10mm;width:100%;}.sig td{border:none;width:50%;padding:4mm 2mm;font-size:10pt;vertical-align:bottom;}'
+                +'.sig-line{border-bottom:1px solid #000;display:inline-block;width:140px;margin-left:4px;}'
+                +'.no-print{margin:8mm 0;text-align:center;}'
+                +'.no-print button{padding:10px 28px;font-size:12pt;font-family:"Times New Roman",serif;cursor:pointer;background:#D35400;color:#fff;border:none;border-radius:6px;margin:0 3px;}'
+                +'</style></head><body>'
+                +'<h1>АКТ замечаний при приёмке объекта</h1>'
+                +'<p class="sub">Дата формирования: '+dateStr+'&emsp;&emsp;Количество замечаний: '+total+'</p>'
+                +'<table><tr><th style="width:5%">№</th><th style="width:20%">Фото</th><th style="width:33%">Описание нарушения</th><th style="width:15%">Место</th><th style="width:19%">Норматив</th><th style="width:8%">Дата</th></tr>'
+                +tableRows+'</table>'
+                +'<table class="sig"><tr><td>Составил: <span class="sig-line"></span></td><td>Проверил: <span class="sig-line"></span></td></tr></table>'
+                +'<hr class="divider">'
+                +'<p class="section-title">Фотографии в полном размере</p>'
+                +'<p style="text-align:center;font-size:9pt;color:#888;margin-bottom:5mm;">Ножницы скрина для копирования в документ</p>'
+                +bigCards
+                +'<div class="no-print"><button onclick="window.print()">Печать / PDF</button></div>'
+                +'</body></html>';
+            var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+            var url=URL.createObjectURL(blob);
+            var a=document.createElement('a');a.href=url;
+            a.download='Замечания_'+dateStr.replace(/\./g,'-')+'.html';
+            document.body.appendChild(a);a.click();document.body.removeChild(a);
+            setTimeout(function(){URL.revokeObjectURL(url);},1000);
+            showToast('Файл выгружен');
+        }
+
+        /* ============================
+           Обработчики
+           ============================ */
+        fabBtn.addEventListener('click',openAddForm);
+        $('btn-export').addEventListener('click',exportToHtml);
+        $('btn-form-back').addEventListener('click',function(){showScreen('list');});
+        $('btn-detail-back').addEventListener('click',function(){showScreen('list');});
+        photoBlock.addEventListener('click',function(){inputCamera.click();});
+        $('photo-gallery-link').addEventListener('click',function(e){e.stopPropagation();inputGallery.click();});
+
+        function bindFileInput(input){
+            input.addEventListener('change',function(){
+                if(!input.files[0])return;
+                compressImage(input.files[0],function(base64){
+                    if(base64)setPhotoPreview(base64); else showToast('Ошибка обработки фото');
+                });
+                input.value='';
+            });
+        }
+        bindFileInput(inputCamera);
+        bindFileInput(inputGallery);
+
+        remarkForm.addEventListener('submit',function(e){e.preventDefault();saveRemark();});
+        $('btn-modal-cancel').addEventListener('click',function(){deleteModal.classList.remove('show');deleteTargetId=null;});
+        $('btn-modal-confirm').addEventListener('click',function(){if(deleteTargetId!==null)deleteRemark(deleteTargetId);deleteTargetId=null;deleteModal.classList.remove('show');});
+        deleteModal.addEventListener('click',function(e){if(e.target===deleteModal){deleteModal.classList.remove('show');deleteTargetId=null;}});
+
+        /* ============================
+           Инициализация
+           ============================ */
+        openDB().then(function(database){
+            db = database;
+            return dbGetAll();
+        }).then(function(data){
+            remarks = data;
+        }).then(function(){
+            return migrateOld();
+        }).then(function(){
+            return dbGetAll();
+        }).then(function(data){
+            remarks = data;
+            loadLastLoc();
+            renderList();
+            var ls = $('loading-screen');
+            ls.classList.add('hide');
+            setTimeout(function(){ls.remove();},300);
+        }).catch(function(err){
+            console.error('Init error:', err);
+            loadLastLoc();
+            renderList();
+            var ls = $('loading-screen');
+            ls.classList.add('hide');
+            setTimeout(function(){ls.remove();},300);
+        });
+    </script>
 </body>
 </html>
+Как тут
